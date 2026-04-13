@@ -28,12 +28,12 @@ app.get("/bobit-logo.png", (req, res) => {
 //  SECTION 1 — CREDENTIALS
 // ============================================================
 const CONFIG = {
-  ANTHROPIC_API_KEY       : process.env.ANTHROPIC_API_KEY ,
-  DATABRICKS_HOST         : process.env.DATABRICKS_HOST    ,    
-  DATABRICKS_TOKEN        : process.env.DATABRICKS_TOKEN    ,    
-  DATABRICKS_WAREHOUSE_ID : process.env.DATABRICKS_WAREHOUSE_ID, 
-  DATABRICKS_CATALOG      : process.env.DATABRICKS_CATALOG      ,
-  DATABRICKS_SCHEMA       : process.env.DATABRICKS_SCHEMA       ,
+  ANTHROPIC_API_KEY       : process.env.ANTHROPIC_API_KEY       ,
+  DATABRICKS_HOST         : process.env.DATABRICKS_HOST         ,
+  DATABRICKS_TOKEN        : process.env.DATABRICKS_TOKEN        ,
+  DATABRICKS_WAREHOUSE_ID : process.env.DATABRICKS_WAREHOUSE_ID ,
+  DATABRICKS_CATALOG      : process.env.DATABRICKS_CATALOG    ,
+  DATABRICKS_SCHEMA       : process.env.DATABRICKS_SCHEMA      ,
   DATABRICKS_TABLE        : process.env.DATABRICKS_TABLE        ,
   LOG_TABLE               : "bobit_datalake.default.bbm_demo_logs",
   LEADS_TABLE             : "bobit_datalake.default.bbm_demo_leads",
@@ -149,7 +149,7 @@ FROM deduped
 ORDER BY signal_score DESC
 LIMIT 5
 
-- Always include company_revenue_range and company_industry in company listing queries so charts can be rendered.
+- Always include fleet_size and companyState in company listing queries so charts can be rendered.
 - The scalar subquery (SELECT COUNT(*) FROM deduped) gives the true total without CROSS JOIN or row inflation.
 - total_count will appear in every row — the frontend reads it from row[0] automatically.
 - Never use SELECT DISTINCT as a deduplication method for company queries.
@@ -181,31 +181,32 @@ TYPE 1 — "TAM of [industry] companies" (e.g. "TAM of US Logistics companies", 
   They want to know how big that industry segment is in our database.
   → Filter by: WHERE company_industry ILIKE '%<industry>%'   ← use company_industry, NEVER topic
   → Do NOT filter by topic at all for TYPE 1.
-  → ALWAYS return BOTH an industry breakdown AND a revenue breakdown using UNION ALL.
+  → ALWAYS return BOTH a fleet size breakdown AND a state breakdown using UNION ALL.
   → Use a 'section' discriminator column so the frontend can split the two breakdowns.
   → Column names MUST be: section, breakdown_label, company_count, pct_of_total
   REQUIRED PATTERN for TYPE 1 (mandatory — no exceptions):
     WITH filtered AS (
-      SELECT company_id, company_industry, company_revenue_range
+      SELECT company_id, company_industry, fleet_size, companyState
       FROM bobit_datalake.default.bbm_demo_tam
       WHERE company_industry ILIKE '%Logistics%'
     ),
-    ind_base AS (
-      SELECT company_industry AS breakdown_label, COUNT(DISTINCT company_id) AS company_count
-      FROM filtered GROUP BY company_industry
+    fleet_base AS (
+      SELECT fleet_size AS breakdown_label, COUNT(DISTINCT company_id) AS company_count
+      FROM filtered WHERE fleet_size IS NOT NULL AND fleet_size != ''
+      GROUP BY fleet_size
     ),
-    rev_base AS (
-      SELECT company_revenue_range AS breakdown_label, COUNT(DISTINCT company_id) AS company_count
-      FROM filtered WHERE company_revenue_range IS NOT NULL AND company_revenue_range != ''
-      GROUP BY company_revenue_range
+    state_base AS (
+      SELECT companyState AS breakdown_label, COUNT(DISTINCT company_id) AS company_count
+      FROM filtered WHERE companyState IS NOT NULL AND companyState != ''
+      GROUP BY companyState
     )
-    SELECT 'industry' AS section, breakdown_label, company_count,
-           ROUND(company_count * 100.0 / SUM(company_count) OVER (PARTITION BY 'industry'), 1) AS pct_of_total
-    FROM ind_base
+    SELECT 'fleet' AS section, breakdown_label, company_count,
+           ROUND(company_count * 100.0 / SUM(company_count) OVER (PARTITION BY 'fleet'), 1) AS pct_of_total
+    FROM fleet_base
     UNION ALL
-    SELECT 'revenue' AS section, breakdown_label, company_count,
-           ROUND(company_count * 100.0 / SUM(company_count) OVER (PARTITION BY 'revenue'), 1) AS pct_of_total
-    FROM rev_base
+    SELECT 'state' AS section, breakdown_label, company_count,
+           ROUND(company_count * 100.0 / SUM(company_count) OVER (PARTITION BY 'state'), 1) AS pct_of_total
+    FROM state_base
     ORDER BY section, company_count DESC
 
 TYPE 2 — "TAM of companies looking for [product/service]" (e.g. "TAM of companies looking for logistics products", "companies interested in telematics"):
@@ -221,30 +222,31 @@ TYPE 2 — "TAM of companies looking for [product/service]" (e.g. "TAM of compan
       "route optimization" / "routing" → 'Route Optimization'
       "temperature" / "cold chain" → 'Temperature Controlled Shipping'
       "HVAC" / "heating" / "ventilation" → 'HVAC (Heating, Ventilation, & Air Conditioning)'
-  → ALWAYS return BOTH an industry breakdown AND a revenue breakdown using UNION ALL.
+  → ALWAYS return BOTH a fleet size breakdown AND a state breakdown using UNION ALL.
   → Column names MUST be: section, breakdown_label, company_count, pct_of_total
   REQUIRED PATTERN for TYPE 2 (mandatory — no exceptions):
     WITH filtered AS (
-      SELECT DISTINCT company_id, company_industry, company_revenue_range
+      SELECT DISTINCT company_id, fleet_size, companyState
       FROM bobit_datalake.default.bbm_demo_tam
       WHERE topic ILIKE '%Telematics%'
     ),
-    ind_base AS (
-      SELECT company_industry AS breakdown_label, COUNT(DISTINCT company_id) AS company_count
-      FROM filtered GROUP BY company_industry
+    fleet_base AS (
+      SELECT fleet_size AS breakdown_label, COUNT(DISTINCT company_id) AS company_count
+      FROM filtered WHERE fleet_size IS NOT NULL AND fleet_size != ''
+      GROUP BY fleet_size
     ),
-    rev_base AS (
-      SELECT company_revenue_range AS breakdown_label, COUNT(DISTINCT company_id) AS company_count
-      FROM filtered WHERE company_revenue_range IS NOT NULL AND company_revenue_range != ''
-      GROUP BY company_revenue_range
+    state_base AS (
+      SELECT companyState AS breakdown_label, COUNT(DISTINCT company_id) AS company_count
+      FROM filtered WHERE companyState IS NOT NULL AND companyState != ''
+      GROUP BY companyState
     )
-    SELECT 'industry' AS section, breakdown_label, company_count,
-           ROUND(company_count * 100.0 / SUM(company_count) OVER (PARTITION BY 'industry'), 1) AS pct_of_total
-    FROM ind_base
+    SELECT 'fleet' AS section, breakdown_label, company_count,
+           ROUND(company_count * 100.0 / SUM(company_count) OVER (PARTITION BY 'fleet'), 1) AS pct_of_total
+    FROM fleet_base
     UNION ALL
-    SELECT 'revenue' AS section, breakdown_label, company_count,
-           ROUND(company_count * 100.0 / SUM(company_count) OVER (PARTITION BY 'revenue'), 1) AS pct_of_total
-    FROM rev_base
+    SELECT 'state' AS section, breakdown_label, company_count,
+           ROUND(company_count * 100.0 / SUM(company_count) OVER (PARTITION BY 'state'), 1) AS pct_of_total
+    FROM state_base
     ORDER BY section, company_count DESC
 
 CRITICAL DISAMBIGUATION RULE:
@@ -622,9 +624,64 @@ app.post("/api/chat", async (req, res) => {
       rows = rows.map(row => row.filter((_, i) => i !== totalCountIdx));
     }
 
-    // ── Detect stage ───────────────────────────────────────
+    // ── Build chartData aggregate for listing queries ───────
+    // Detect contact stage first so we can skip chart agg for contact queries
     const isContact = hasContactCols(cols);
     const stage     = isContact ? "CONTACT" : "DATA";
+
+    // For any non-TAM, non-contact listing that has fleet_size or companyState,
+    // run a second aggregate query so charts reflect the full dataset (not just the page).
+    let chartData = null;
+    const isListingQuery = !isContact && cols.some(c => c.toLowerCase() === 'fleet_size' || c.toLowerCase() === 'companystate') &&
+      !cols.some(c => c.toLowerCase() === 'section');
+
+    if (isListingQuery && generatedSQL !== "NONE") {
+      try {
+        // Extract the WHERE clause from the generated SQL to reuse the same filters
+        const upperSQL = finalSQL.replace(/\s+/g, ' ');
+        // Find the core filter by extracting from the CTE or main WHERE
+        const whereMatch = upperSQL.match(/WHERE\s+([\s\S]+?)\s*(?:ORDER BY|GROUP BY|LIMIT|$)/i);
+        const whereClause = whereMatch ? whereMatch[1].trim() : '1=1';
+
+        // Strip any rn = 1 dedup filter since we query the full table
+        const cleanWhere = whereClause.replace(/\s*AND\s*rn\s*=\s*1/gi, '').replace(/^rn\s*=\s*1\s*AND\s*/i, '').trim() || '1=1';
+
+        const chartSQL = `
+          WITH base AS (
+            SELECT company_id, fleet_size, companyState
+            FROM ${CONFIG.DATABRICKS_CATALOG}.${CONFIG.DATABRICKS_SCHEMA}.${CONFIG.DATABRICKS_TABLE}
+            WHERE ${cleanWhere}
+          ),
+          fleet_agg AS (
+            SELECT fleet_size AS breakdown_label, COUNT(DISTINCT company_id) AS company_count
+            FROM base WHERE fleet_size IS NOT NULL AND fleet_size != ''
+            GROUP BY fleet_size
+          ),
+          state_agg AS (
+            SELECT companyState AS breakdown_label, COUNT(DISTINCT company_id) AS company_count
+            FROM base WHERE companyState IS NOT NULL AND companyState != ''
+            GROUP BY companyState
+          )
+          SELECT 'fleet' AS section, breakdown_label, company_count,
+                 ROUND(company_count * 100.0 / SUM(company_count) OVER (PARTITION BY 'fleet'), 1) AS pct_of_total
+          FROM fleet_agg
+          UNION ALL
+          SELECT 'state' AS section, breakdown_label, company_count,
+                 ROUND(company_count * 100.0 / SUM(company_count) OVER (PARTITION BY 'state'), 1) AS pct_of_total
+          FROM state_agg
+          ORDER BY section, company_count DESC
+        `;
+
+        if (isSafeSql(chartSQL)) {
+          const chartResult = await databricksQuery(chartSQL);
+          const parsed = parseResult(chartResult);
+          if (parsed.rows.length > 0) chartData = parsed;
+        }
+      } catch (e) {
+        console.warn("[CHART AGG FAILED]", e.message.slice(0, 200));
+        // Non-fatal — frontend will fall back to tallying raw rows
+      }
+    }
 
     // ── Pretty column names ────────────────────────────────
     const COL_LABELS = {
@@ -679,8 +736,9 @@ app.post("/api/chat", async (req, res) => {
       rowCount,
       sql: finalSQL,
       contactsMasked,
-      formAlreadyFilled: contactsUnlocked, // if true, don't show the form again
+      formAlreadyFilled: contactsUnlocked,
       requiresLead,
+      chartData,
       _rollingContext: contextNote,   // client echoes this back in chatHistory
     });
 
