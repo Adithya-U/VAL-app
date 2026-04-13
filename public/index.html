@@ -3,32 +3,34 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>VAL — Bobit Business Media</title>
+<title>BiBi — Bobit Business Media</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
 :root {
-  --teal-dark  : #1a5c6b;
-  --teal       : #1e7a82;
-  --teal-mid   : #2a9a8e;
-  --teal-bright: #2dc4b0;
-  --teal-light : #e6f6f5;
-  --teal-pale  : #f0faf9;
-  --bg         : #f4f6f6;
+  --teal-dark  : #0A1628;
+  --teal       : #0A1628;
+  --teal-mid   : #0055b3;
+  --teal-bright: #0066CC;
+  --teal-light : #e6f0fa;
+  --teal-pale  : #f0f5fb;
+  --bg         : #f2f4f7;
   --surface    : #ffffff;
-  --border     : #dde8e8;
-  --border-mid : #c4d8d8;
-  --text       : #1a2424;
-  --text-mid   : #3d5555;
-  --text-muted : #6b8888;
+  --border     : #dde3ec;
+  --border-mid : #c4cfe0;
+  --text       : #0A1628;
+  --text-mid   : #2d3f5c;
+  --text-muted : #6b7a96;
   --green      : #22a06b;
   --amber      : #b45309;
   --red        : #c0392b;
+  --navy       : #0A1628;
+  --blue       : #0066CC;
   --radius-sm  : 6px;
   --radius     : 10px;
   --radius-lg  : 14px;
-  --shadow     : 0 1px 4px rgba(26,92,107,.08), 0 4px 16px rgba(26,92,107,.06);
-  --shadow-sm  : 0 1px 3px rgba(26,92,107,.1);
+  --shadow     : 0 1px 4px rgba(10,22,40,.08), 0 4px 16px rgba(10,22,40,.06);
+  --shadow-sm  : 0 1px 3px rgba(10,22,40,.1);
 }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; }
@@ -38,8 +40,8 @@ body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color
 #app { display: flex; flex-direction: column; height: 100dvh; max-width: 900px; margin: 0 auto; background: var(--surface); box-shadow: var(--shadow); }
 
 /* ── Header ── */
-header { background: linear-gradient(135deg, var(--teal-dark) 0%, var(--teal) 60%, var(--teal-mid) 100%); padding: 0 20px; flex-shrink: 0; position: relative; overflow: hidden; }
-header::before { content:''; position:absolute; inset:0; background:radial-gradient(ellipse at 80% 50%, rgba(45,196,176,.18) 0%, transparent 65%); pointer-events:none; }
+header { background: linear-gradient(135deg, #0A1628 0%, #0d1f3c 60%, #0f2548 100%); padding: 0 20px; flex-shrink: 0; position: relative; overflow: hidden; }
+header::before { content:''; position:absolute; inset:0; background:radial-gradient(ellipse at 80% 50%, rgba(0,102,204,.2) 0%, transparent 65%); pointer-events:none; }
 .header-inner { display:flex; align-items:center; justify-content:space-between; padding:14px 0; gap:12px; position:relative; z-index:1; }
 .val-brand { display:flex; align-items:center; gap:10px; }
 .val-icon { width:36px; height:36px; background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.25); border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:17px; flex-shrink:0; }
@@ -77,7 +79,7 @@ header::before { content:''; position:absolute; inset:0; background:radial-gradi
 .msg-row { display:flex; gap:10px; align-items:flex-start; }
 .msg-row.user { flex-direction:row-reverse; }
 .avatar { width:30px; height:30px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:600; }
-.avatar.val  { background:linear-gradient(135deg, var(--teal-dark), var(--teal-mid)); color:#fff; font-size:12px; }
+.avatar.val  { background:linear-gradient(135deg, #0A1628, #0066CC); color:#fff; font-size:12px; font-weight:700; }
 .avatar.user { background:#e8f4f3; color:var(--teal-dark); }
 .msg-body { flex:1; min-width:0; }
 .msg-row.user .msg-body { display:flex; flex-direction:column; align-items:flex-end; }
@@ -123,7 +125,7 @@ table.dt tr:hover td { background:var(--teal-pale); }
 
 /* ── Lead gate ── */
 .lead-gate { margin:12px 14px 14px; border:1.5px solid var(--teal-bright); border-radius:var(--radius-lg); overflow:hidden; }
-.lead-gate-hd { padding:12px 16px 8px; background:linear-gradient(135deg, var(--teal-dark), var(--teal-mid)); color:#fff; }
+.lead-gate-hd { padding:12px 16px 8px; background:linear-gradient(135deg, #0A1628, #0066CC); color:#fff; }
 .lead-gate-title { font-size:13px; font-weight:600; margin-bottom:2px; }
 .lead-gate-sub { font-size:11px; color:rgba(255,255,255,.75); }
 .lead-gate-body { padding:14px 16px; display:flex; flex-direction:column; gap:9px; background:var(--teal-pale); }
@@ -133,19 +135,23 @@ table.dt tr:hover td { background:var(--teal-pale); }
 .lead-field input { padding:7px 10px; border:1.5px solid var(--border-mid); border-radius:var(--radius-sm); font-size:13px; font-family:inherit; color:var(--text); background:var(--surface); outline:none; transition:border-color .2s; }
 .lead-field input:focus { border-color:var(--teal-bright); }
 .lead-field input::placeholder { color:var(--text-muted); }
-.lead-submit { width:100%; padding:10px; background:var(--teal-dark); color:#fff; border:none; border-radius:var(--radius); font-size:13px; font-weight:600; font-family:inherit; cursor:pointer; transition:background .15s; margin-top:2px; }
-.lead-submit:hover { background:var(--teal); }
+.lead-submit { width:100%; padding:10px; background:#0066CC; color:#fff; border:none; border-radius:var(--radius); font-size:13px; font-weight:600; font-family:inherit; cursor:pointer; transition:background .15s; margin-top:2px; }
+.lead-submit:hover { background:#0055b3; }
 .lead-submit:disabled { opacity:.45; cursor:not-allowed; }
 .lead-success { margin:10px 14px 14px; padding:11px 14px; background:#ecfdf5; border:1px solid #6ee7b7; border-radius:var(--radius); font-size:12.5px; color:var(--green); font-weight:500; }
 
-/* ── Input ── */
+/* ── Headline numbers ── */
+.stat-number { font-weight:700; font-size:1.1em; color:var(--navy); letter-spacing:-.3px; }
+.block-label-count { font-weight:700; font-size:11.5px; }
+
+
 .input-area { padding:12px 16px 14px; border-top:1px solid var(--border); background:var(--surface); flex-shrink:0; }
 .input-row { display:flex; gap:8px; align-items:flex-end; background:var(--bg); border:1.5px solid var(--border-mid); border-radius:var(--radius-lg); padding:8px 8px 8px 14px; transition:border-color .2s; }
 .input-row:focus-within { border-color:var(--teal-bright); }
 textarea#q { flex:1; background:transparent; border:none; outline:none; resize:none; font-size:13.5px; font-family:inherit; color:var(--text); min-height:22px; max-height:100px; line-height:1.55; padding:0; }
 textarea#q::placeholder { color:var(--text-muted); }
-#send { width:34px; height:34px; background:var(--teal-dark); border:none; border-radius:var(--radius-sm); cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:background .15s, opacity .15s; }
-#send:hover { background:var(--teal); }
+#send { width:34px; height:34px; background:#0066CC; border:none; border-radius:var(--radius-sm); cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:background .15s, opacity .15s; }
+#send:hover { background:#0055b3; }
 #send:disabled { opacity:.35; cursor:not-allowed; }
 #send svg { width:15px; height:15px; fill:none; stroke:#fff; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
 .input-hint { font-size:10.5px; color:var(--text-muted); margin-top:6px; text-align:center; }
@@ -170,10 +176,14 @@ textarea#q::placeholder { color:var(--text-muted); }
   <header>
     <div class="header-inner">
       <div class="val-brand">
-        <div class="val-icon">✦</div>
+        <div class="val-icon">
+          <img src="/bobit-logo.png" alt="Bobit" style="width:48px;height:auto;object-fit:contain;border-radius:4px;" onerror="this.style.display='none';this.parentElement.textContent='✦'">
+        </div>
         <div>
-          <div class="val-name">VAL</div>
-          <div class="val-sub">AI Market Intelligence · Bobit Business Media</div>
+          <div class="val-name">BiBi</div>
+          <div class="val-sub" style="font-size:10.5px;color:rgba(255,255,255,.75);font-weight:500;letter-spacing:.1px;">
+            <span style="color:#4ade80;font-weight:600;">Beta Preview</span> · Data reflects intent signals from the past 30 days
+          </div>
         </div>
       </div>
       <div class="header-right">
@@ -184,7 +194,7 @@ textarea#q::placeholder { color:var(--text-muted); }
     <div class="status-bar">
       <div class="status-dot spin" id="sdot"></div>
       <span class="status-text" id="stxt">Connecting…</span>
-      <span class="cat-tag" id="cat-tag">—</span>
+      <span class="cat-tag" id="cat-tag" style="display:none">—</span>
     </div>
   </header>
 
@@ -193,13 +203,16 @@ textarea#q::placeholder { color:var(--text-muted); }
       <div id="empty">
         <div class="empty-sparkle">✦</div>
         <div class="empty-title" id="e-title">Connecting…</div>
-        <div class="empty-sub" id="e-sub">VAL is warming up.</div>
+        <div class="empty-sub" id="e-sub">BiBi is warming up.</div>
         <div class="chips" id="chips"></div>
+        <div id="beta-note" style="display:none;margin-top:18px;padding:8px 16px;background:#fff;border:1px solid var(--border);border-radius:20px;font-size:11.5px;color:var(--text-muted);letter-spacing:.2px;">
+          <span style="font-weight:600;color:var(--blue);">Beta Preview</span> · Data reflects intent signals from the past 30 days
+        </div>
       </div>
     </div>
     <div class="input-area">
       <div class="input-row">
-        <textarea id="q" placeholder="Ask VAL about your data…" rows="1"
+        <textarea id="q" placeholder="Ask BiBi about fleet companies, contacts, or market sizing…" rows="1"
           onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send()}"
           oninput="resize(this)" disabled></textarea>
         <button id="send" onclick="send()" disabled>
@@ -222,8 +235,8 @@ const SESSION_ID = 'sess_' + Math.random().toString(36).slice(2) + '_' + Date.no
 
 // Chart palette
 const CHART_COLORS = [
-  '#1e7a82','#2dc4b0','#e07b39','#f4c542','#5b8dd9',
-  '#9b59b6','#2ecc71','#e74c3c','#1abc9c','#f39c12'
+  '#0066CC','#0A1628','#3399FF','#004d99','#66b3ff',
+  '#e07b39','#f4c542','#5b8dd9','#22a06b','#9b59b6'
 ];
 
 // ── Boot ──────────────────────────────────────────────────────
@@ -240,8 +253,9 @@ const CHART_COLORS = [
 
   // Enable UI immediately — don't block on slow Databricks ping
   setStatus('ok', 'Connected · Ready');
-  document.getElementById('e-title').textContent = 'Ready — ask VAL anything';
-  document.getElementById('e-sub').textContent   = 'Ask about market size, companies, contacts, fleet data, or intent signals.';
+  document.getElementById('e-title').textContent = 'Ask BiBi';
+  document.getElementById('e-sub').textContent   = "Hi, I'm BiBi — BBM's Fleet Market Intelligence Assistant. Ask me about fleet companies, buyer contacts, or market sizing across BBM's fleet verticals.";
+  document.getElementById('beta-note').style.display = 'block';
   document.getElementById('q').disabled    = false;
   document.getElementById('send').disabled = false;
 
@@ -271,16 +285,19 @@ function setQ(t) {
 // ── New chat ──────────────────────────────────────────────────
 function newChat() {
   if (busy) return;
-  history = []; turnNumber = 0;
+  history = []; history._rollingContext = ""; turnNumber = 0;
   const chat = document.getElementById('chat');
   chat.innerHTML = '';
   const empty = document.createElement('div');
   empty.id = 'empty';
   empty.innerHTML = `
     <div class="empty-sparkle">✦</div>
-    <div class="empty-title">Ready — ask VAL anything</div>
-    <div class="empty-sub">Start a new conversation about your data.</div>
-    <div class="chips" id="chips"></div>`;
+    <div class="empty-title">Ask BiBi</div>
+    <div class="empty-sub">Start a new conversation about your fleet market data.</div>
+    <div class="chips" id="chips"></div>
+    <div style="margin-top:18px;padding:8px 16px;background:#fff;border:1px solid var(--border);border-radius:20px;font-size:11.5px;color:var(--text-muted);letter-spacing:.2px;">
+      <span style="font-weight:600;color:var(--blue);">Beta Preview</span> · Data reflects intent signals from the past 30 days
+    </div>`;
   chat.appendChild(empty);
   renderChips([
     "Show me a list of companies researching telematics solutions",
@@ -297,7 +314,7 @@ function appendMsg(role, html) {
   const chat=document.getElementById('chat');
   const row=document.createElement('div');
   row.className='msg-row '+role;
-  row.innerHTML=`<div class="avatar ${role}">${role==='bot'?'✦':'👤'}</div><div class="msg-body">${html}</div>`;
+  row.innerHTML=`<div class="avatar ${role}">${role==='bot'?'B':'👤'}</div><div class="msg-body">${html}</div>`;
   chat.appendChild(row);
   scrollBot();
   return row;
@@ -317,14 +334,14 @@ function esc(s) {
 function fmt(text) {
   return esc(text)
     .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
-    .replace(/`(.+?)`/g,'<code style="font-family:monospace;font-size:11.5px;background:#f0faf9;color:var(--teal-dark);padding:1px 5px;border-radius:4px">$1</code>')
+    .replace(/`(.+?)`/g,'<code style="font-family:monospace;font-size:11.5px;background:#f0f5fb;color:var(--navy);padding:1px 5px;border-radius:4px">$1</code>')
+    .replace(/\b(\d{1,3}(?:,\d{3})+|\d{4,})\b/g,'<strong style="font-size:1.05em;color:var(--navy)">$1</strong>')
     .replace(/^[-•] (.+)$/gm,'<li style="margin-left:16px;margin-bottom:0px">$1</li>')
     .replace(/^\d+\. (.+)$/gm,'<li style="margin-left:16px;margin-bottom:0px">$1</li>')
     .replace(/(<li[^>]*>.*?<\/li>)(\s*<br>\s*(<li[^>]*>))/g, '$1$3')
     .replace(/(<li[^>]*>(?:.*?<\/li>\s*)+)/gs, '<ul style="margin:4px 0;padding-left:16px;list-style:disc">$1</ul>')
     .replace(/\n/g,'<br>')
     .replace(/<\/li><br>/g, '</li>');
-    
 }
 
 // ── Chart helpers ───────────────────────────────────────────
@@ -343,39 +360,116 @@ function isAggregateResult(cols) {
 
 // ── Chart state ──────────────────────────────────────────────
 let chartInstances = {};
-
 function renderSmartCharts(cols, rows, containerId) {
   const container = document.getElementById(containerId);
   if (!container) return false;
 
-  const lower      = cols.map(c => c.toLowerCase());
-  const hasIndustry = lower.includes('company_industry');
-  const hasRevenue  = lower.includes('company_revenue_range');
-  // For company listings, industry values come directly from rows (no separate count col needed)
-  // For aggregate queries, a count col will be present
-  const countIdx   = lower.findIndex(c => c.includes('count'));
-
+  const lower = cols.map(c => c.toLowerCase());
   const PALETTE = [
-    '#1e7a82','#2dc4b0','#e07b39','#f4c542','#5b8dd9',
-    '#9b59b6','#2ecc71','#e74c3c','#1abc9c','#f39c12','#34495e','#16a085'
+    '#0066CC','#0A1628','#3399FF','#004d99','#66b3ff',
+    '#e07b39','#f4c542','#5b8dd9','#22a06b','#9b59b6','#34495e','#16a085'
+  ];
+
+  // ── Simple industry-only breakdown (from buildChartSQL) ──────────────
+  const isSimpleBreakdown =
+    lower.includes('breakdown_label') &&
+    lower.includes('company_count') &&
+    !lower.includes('section');
+
+  if (isSimpleBreakdown) {
+    const lblIdx = lower.indexOf('breakdown_label');
+    const cntIdx = lower.indexOf('company_count');
+    const data = rows
+      .filter(r => r[lblIdx] && r[lblIdx] !== 'null' && r[lblIdx] !== '')
+      .map(r => ({ label: String(r[lblIdx]), value: parseFloat(r[cntIdx]) || 0 }));
+
+    if (data.length >= 1) {
+      const cid = containerId + '_ind';
+      container.innerHTML = `<div class="charts-wrap"><div class="chart-box" style="min-width:280px"><h4>🏭 Industry Breakdown</h4><canvas id="${cid}"></canvas></div></div>`;
+      renderPieChart(cid, data, PALETTE);
+      return true;
+    }
+    return false;
+  }
+}
+function renderSmartCharts(cols, rows, containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return false;
+
+  const lower = cols.map(c => c.toLowerCase());
+  const PALETTE = [
+    '#0066CC','#0A1628','#3399FF','#004d99','#66b3ff',
+    '#e07b39','#f4c542','#5b8dd9','#22a06b','#9b59b6','#34495e','#16a085'
   ];
 
   const boxes = [];
+
+  // ── TAM UNION ALL format: section, breakdown_label, company_count, pct_of_total ──
+  const hasSectionCol  = lower.includes('section');
+  const hasLabelCol    = lower.includes('breakdown_label');
+  const hasCountCol    = lower.includes('company_count');
+
+  if (hasSectionCol && hasLabelCol && hasCountCol) {
+    const secIdx   = lower.indexOf('section');
+    const lblIdx   = lower.indexOf('breakdown_label');
+    const cntIdx   = lower.indexOf('company_count');
+
+    const indRows = rows.filter(r => String(r[secIdx]).toLowerCase() === 'industry');
+    const revRows = rows.filter(r => String(r[secIdx]).toLowerCase() === 'revenue');
+
+    // ── Industry pie (with on-slice labels, supports single slice) ──
+    if (indRows.length >= 1) {
+      const indData = indRows
+        .filter(r => r[lblIdx] && r[lblIdx] !== 'null' && r[lblIdx] !== '')
+        .map(r => ({ label: String(r[lblIdx]), value: parseFloat(r[cntIdx]) || 0 }));
+
+      if (indData.length >= 1) {
+        const cid = containerId + '_ind';
+        boxes.push({
+          html: `<div class="chart-box" style="min-width:280px"><h4>🏭 Industry Breakdown</h4><canvas id="${cid}"></canvas></div>`,
+          render() { renderPieChart(cid, indData, PALETTE); }
+        });
+      }
+    }
+
+    // ── Revenue bar chart ──
+    if (revRows.length >= 2) {
+      const revData = revRows
+        .filter(r => r[lblIdx] && r[lblIdx] !== 'null' && r[lblIdx] !== '')
+        .map(r => ({ label: String(r[lblIdx]), value: parseFloat(r[cntIdx]) || 0 }));
+
+      if (revData.length >= 2) {
+        const cid = containerId + '_rev';
+        boxes.push({
+          html: `<div class="chart-box" style="min-width:280px"><h4>💰 Revenue Distribution</h4><canvas id="${cid}"></canvas></div>`,
+          render() { renderBarChart(cid, revData, PALETTE); }
+        });
+      }
+    }
+
+    if (boxes.length) {
+      container.innerHTML = `<div class="charts-wrap">${boxes.map(b=>b.html).join('')}</div>`;
+      boxes.forEach(b => b.render());
+      return true;
+    }
+  }
+
+  // ── Legacy format: company_industry / company_revenue_range columns ──
+  const hasIndustry = lower.includes('company_industry');
+  const hasRevenue  = lower.includes('company_revenue_range');
+  const countIdx    = lower.findIndex(c => c.includes('count'));
 
   if (hasIndustry) {
     const indIdx = lower.indexOf('company_industry');
     let data;
     if (countIdx !== -1) {
-      // Aggregate query: use count column (distinct companies)
       data = [...rows]
         .filter(r => r[indIdx] && r[indIdx] !== 'null' && r[indIdx] !== '')
         .sort((a,b) => parseFloat(b[countIdx]||0) - parseFloat(a[countIdx]||0))
         .slice(0, 10)
         .map(r => ({ label: String(r[indIdx]), value: parseFloat(r[countIdx]) || 0 }));
     } else {
-      // Listing query: count distinct companies by tallying unique company rows
-      const seen = new Set();
-      const tally = {};
+      const seen = new Set(), tally = {};
       rows.forEach(r => {
         const compIdx = lower.indexOf('company_name');
         const key = compIdx !== -1 ? String(r[compIdx]) : null;
@@ -387,37 +481,11 @@ function renderSmartCharts(cols, rows, containerId) {
       });
       data = Object.entries(tally).sort((a,b) => b[1]-a[1]).slice(0,10).map(([label,value]) => ({label,value}));
     }
-    if (data.length > 1) {
+    if (data.length >= 1) {
       const cid = containerId + '_ind';
       boxes.push({
         html: `<div class="chart-box"><h4>🏭 Industry Breakdown</h4><canvas id="${cid}"></canvas></div>`,
-        render() {
-          const ctx = document.getElementById(cid)?.getContext('2d');
-          if (!ctx) return;
-          if (chartInstances[cid]) chartInstances[cid].destroy();
-          const labels = data.map(d => String(d.label)), values = data.map(d => d.value);
-          const total  = values.reduce((a,b) => a+b, 0);
-          chartInstances[cid] = new Chart(ctx, {
-            type: 'doughnut',
-            data: { labels, datasets:[{ data:values, backgroundColor:PALETTE, borderWidth:2, borderColor:'#fff' }] },
-            options: { responsive:true, plugins:{
-              legend:{ position:'right', labels:{font:{size:10}, boxWidth:12, padding:6} },
-              tooltip: {
-  callbacks: {
-    label: (c) => {
-      let val = c.parsed;
-      if (typeof val === 'object') {
-        val = val.y ?? val.x ?? 0;
-      }
-
-      const p = total ? ((val / total) * 100).toFixed(1) : 0;
-      return ` ${Number(val).toLocaleString()} companies (${p}%)`;
-    }
-  }
-}
-            }}
-          });
-        }
+        render() { renderPieChart(cid, data, PALETTE); }
       });
     }
   }
@@ -430,8 +498,7 @@ function renderSmartCharts(cols, rows, containerId) {
         .filter(r => r[revIdx] && r[revIdx] !== 'null' && r[revIdx] !== '')
         .map(r => ({ label: String(r[revIdx]), value: parseFloat(r[countIdx]) || 0 }));
     } else {
-      const seen = new Set();
-      const tally = {};
+      const seen = new Set(), tally = {};
       rows.forEach(r => {
         const compIdx = lower.indexOf('company_name');
         const key = compIdx !== -1 ? String(r[compIdx]) : null;
@@ -443,33 +510,11 @@ function renderSmartCharts(cols, rows, containerId) {
       });
       data = Object.entries(tally).map(([label,value]) => ({label,value}));
     }
-    if (data.length > 1) {
+    if (data.length >= 2) {
       const cid = containerId + '_rev';
       boxes.push({
         html: `<div class="chart-box"><h4>💰 Revenue Distribution</h4><canvas id="${cid}"></canvas></div>`,
-        render() {
-          const ctx = document.getElementById(cid)?.getContext('2d');
-          if (!ctx) return;
-          if (chartInstances[cid]) chartInstances[cid].destroy();
-          chartInstances[cid] = new Chart(ctx, {
-            type: 'bar',
-            data: { labels:data.map(d=>d.label), datasets:[{ data:data.map(d=>d.value), backgroundColor:PALETTE[0], borderRadius:4 }] },
-            options: { responsive:true,
-              plugins: {
-  legend: { display: false },
-  tooltip: {
-    callbacks: {
-      label: (c) => {
-        const val = typeof c.parsed === 'object' ? c.parsed.y : c.parsed;
-        return ` ${Number(val).toLocaleString()} companies`;
-      }
-    }
-  }
-},
-              scales:{ x:{ticks:{font:{size:9},maxRotation:40},grid:{display:false}}, y:{ticks:{font:{size:10}},grid:{color:'rgba(0,0,0,.05)'}} }
-            }
-          });
-        }
+        render() { renderBarChart(cid, data, PALETTE); }
       });
     }
   }
@@ -480,14 +525,192 @@ function renderSmartCharts(cols, rows, containerId) {
   return true;
 }
 
+// ── Pie/Doughnut with on-slice % labels ──────────────────────
+function renderPieChart(cid, data, PALETTE) {
+  const ctx = document.getElementById(cid)?.getContext('2d');
+  if (!ctx) return;
+  if (chartInstances[cid]) chartInstances[cid].destroy();
+  let processedData = [...data];
+
+  if (processedData.length > 15) {
+  // sort descending
+    processedData.sort((a, b) => b.value - a.value);
+
+    const top14 = processedData.slice(0, 14);
+    const rest  = processedData.slice(14);
+
+    const othersValue = rest.reduce((sum, d) => sum + d.value, 0);
+
+    processedData = [
+      ...top14,
+      { label: 'Others', value: othersValue }
+    ];
+  }
+
+  const labels = data.map(d => d.label);
+  const values = data.map(d => d.value);
+  const total  = values.reduce((a,b) => a+b, 0);
+  const isSingle = data.length === 1;
+
+  // Custom plugin: draw % labels directly on slices
+  const sliceLabelPlugin = {
+    id: 'sliceLabels',
+    afterDraw(chart) {
+      const ctx2 = chart.ctx;
+      const ds = chart.getDatasetMeta(0);
+      ctx2.save();
+      ds.data.forEach((arc, i) => {
+        const val = values[i];
+        const pct = total ? ((val / total) * 100).toFixed(1) : '100.0';
+        if (parseFloat(pct) < 3 && data.length > 5) return; // skip tiny slices in crowded charts
+
+        const angle = (arc.startAngle + arc.endAngle) / 2;
+        const r = (arc.innerRadius + arc.outerRadius) / 2;
+        const x = arc.x + Math.cos(angle) * r;
+        const y = arc.y + Math.sin(angle) * r;
+
+        ctx2.font = 'bold 11px Inter, sans-serif';
+        ctx2.fillStyle = '#fff';
+        ctx2.textAlign = 'center';
+        ctx2.textBaseline = 'middle';
+        ctx2.shadowColor = 'rgba(0,0,0,0.45)';
+        ctx2.shadowBlur = 3;
+
+        if (isSingle) {
+          // For single slice show label + count + 100%
+          const shortLbl = labels[0].length > 18 ? labels[0].slice(0,16)+'…' : labels[0];
+          ctx2.fillText(shortLbl, x, y - 10);
+          ctx2.fillText(`${Number(val).toLocaleString()} cos`, x, y + 4);
+          ctx2.fillText('100%', x, y + 18);
+        } else {
+          ctx2.fillText(`${pct}%`, x, y);
+        }
+        ctx2.shadowBlur = 0;
+      });
+      ctx2.restore();
+    }
+  };
+
+  chartInstances[cid] = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets:[{ data: values, backgroundColor: isSingle ? [PALETTE[0]] : PALETTE, borderWidth: 2, borderColor: '#fff' }]
+    },
+    plugins: [sliceLabelPlugin],
+    options: {
+      responsive: true,
+      plugins: {
+        legend: {
+          position: 'right',
+          labels: {
+            font: { size: 10 }, boxWidth: 12, padding: 8,
+            generateLabels: (chart) => {
+              const ds = chart.data.datasets[0];
+              const tot = ds.data.reduce((a,b) => a+b, 0);
+              return chart.data.labels.map((lbl, i) => {
+                const val = ds.data[i];
+                const pct = tot ? ((val/tot)*100).toFixed(1) : '100.0';
+                const short = lbl.length > 20 ? lbl.slice(0,18)+'…' : lbl;
+                return {
+                  text: `${short}  ${pct}%`,
+                  fillStyle: ds.backgroundColor[i],
+                  strokeStyle: '#fff',
+                  lineWidth: 2,
+                  index: i
+                };
+              });
+            }
+          }
+        },
+        tooltip: {
+          callbacks: {
+            title: (items) => items[0]?.label || '',
+            label: (c) => {
+              const val = c.parsed;
+              const pct = total ? ((val / total) * 100).toFixed(1) : '100.0';
+              return ` ${Number(val).toLocaleString()} companies (${pct}%)`;
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+// ── Bar chart with % labels on bars ──────────────────────────
+function renderBarChart(cid, data, PALETTE) {
+  const ctx = document.getElementById(cid)?.getContext('2d');
+  if (!ctx) return;
+  if (chartInstances[cid]) chartInstances[cid].destroy();
+
+  const barTotal = data.reduce((a,b) => a+b.value, 0);
+
+  const pctLabelPlugin = {
+    id: 'barPctLabels',
+    afterDatasetsDraw(chart) {
+      const ctx2 = chart.ctx;
+      ctx2.save();
+      ctx2.font = 'bold 9.5px Inter, sans-serif';
+      ctx2.fillStyle = '#0A1628';
+      ctx2.textAlign = 'center';
+      ctx2.textBaseline = 'bottom';
+      chart.getDatasetMeta(0).data.forEach((bar, idx) => {
+        const val = data[idx]?.value || 0;
+        const pct = barTotal ? ((val/barTotal)*100).toFixed(1) : 0;
+        ctx2.fillText(`${pct}%`, bar.x, bar.y - 2);
+      });
+      ctx2.restore();
+    }
+  };
+
+  chartInstances[cid] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: data.map(d => d.label),
+      datasets: [{ data: data.map(d => d.value), backgroundColor: PALETTE[0], borderRadius: 4 }]
+    },
+    plugins: [pctLabelPlugin],
+    options: {
+      responsive: true,
+      layout: { padding: { top: 18 } },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (c) => {
+              const val = typeof c.parsed === 'object' ? c.parsed.y : c.parsed;
+              const pct = barTotal ? ((val/barTotal)*100).toFixed(1) : 0;
+              return ` ${Number(val).toLocaleString()} companies`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: { ticks: { font: { size: 9 }, maxRotation: 40 }, grid: { display: false } },
+        y: { ticks: { font: { size: 10 } }, grid: { color: 'rgba(0,0,0,.05)' } }
+      }
+    }
+  });
+}
+
 
 // ── Lead gate ─────────────────────────────────────────────────
-function renderLeadGate(tblId, cols, rows) {
+function renderLeadGate(tblId, cols, rows, formAlreadyFilled) {
+  // Always show masked privacy notice. Only show the form if the user hasn't filled it yet.
+  const noticeOnly = formAlreadyFilled
+    ? `<div style="margin:10px 14px 14px;padding:11px 14px;background:#ecfdf5;border:1px solid #6ee7b7;border-radius:var(--radius);font-size:12.5px;color:#065f46;font-weight:500;">
+        🔒 Contact details are masked for privacy. Your request has already been received — full details will be emailed to you shortly.
+      </div>`
+    : '';
+
+  if (formAlreadyFilled) return noticeOnly;
+
   return `
     <div class="lead-gate" id="gate_${tblId}">
       <div class="lead-gate-hd">
         <div class="lead-gate-title">🔒 Privacy Notice</div>
-        <div class="lead-gate-sub" style="color:rgba(255,255,255,.85);font-size:12px;line-height:1.5;margin-top:4px;">The requested data contains email, phone and other PII information. Personal details have been masked for privacy. If you need complete contact information, please fill out the request form below and we'll email you the details.</div>
+        <div class="lead-gate-sub" style="color:rgba(255,255,255,.85);font-size:12px;line-height:1.5;margin-top:4px;">Contact details are masked for privacy. Fill out the form below and we'll email you the full contact information.</div>
       </div>
       <div class="lead-gate-body">
         <div class="lead-row">
@@ -583,7 +806,7 @@ async function send() {
   appendMsg('user', `<div class="bubble">${esc(q)}</div>`);
 
   const placeholder = appendMsg('bot', `
-    <div class="stage" id="stage">✦ VAL is thinking…</div>
+    <div class="stage" id="stage">✦ BiBi is thinking…</div>
     <div class="bubble"><div class="dots"><span></span><span></span><span></span></div></div>
   `);
 
@@ -594,20 +817,20 @@ async function send() {
   };
 
   try {
-    setStage('✦ VAL is thinking…');
+    setStage('✦ BiBi is thinking…');
 
     const resp = await fetch('/api/chat', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({
         question: q,
-        chatHistory: history.filter(t=>t.question),
+        chatHistory: Object.assign(history.filter(t=>t.question), { _rollingContext: history._rollingContext }),
         sessionToken,
         sessionId: SESSION_ID,
         turnNumber,
       })
     });
 
-    setStage('✦ VAL is thinking…');
+    setStage('✦ BiBi is thinking…');
     const data = await resp.json();
     if (data.error) throw new Error(data.error);
 
@@ -628,7 +851,7 @@ async function send() {
         .slice(0, 3);
       if (!bullets.length) return '';
       return `<div class="insights-block" style="margin-top:10px;padding:10px 14px;background:var(--teal-pale);border:1px solid var(--border);border-radius:var(--radius);font-size:12.5px;">
-        <div style="font-size:10.5px;font-weight:600;text-transform:none;letter-spacing:.6px;color:var(--teal-dark);margin-bottom:7px;">💡 Key Insights</div>
+        <div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--navy);margin-bottom:7px;">💡 Key Insights</div>
         <ul style="margin:0;padding-left:16px;list-style:disc;display:flex;flex-direction:column;gap:5px;color:var(--text-mid);">
           ${bullets.map(b=>`<li>${fmt(b)}</li>`).join('')}
         </ul>
@@ -642,12 +865,18 @@ async function send() {
 
     // Helper to build table
     function buildTable(cols, prettycols, rows) {
-      const skipCols = new Set(['company_id','contact_id']);
+      const skipCols = new Set(['company_id','contact_id','signal_score','signal_date','rn']);
       const indices = cols.map((c,i) => skipCols.has(c.toLowerCase()) ? -1 : i).filter(i => i !== -1);
-      const th = indices.map(i => `<th>${esc(prettycols[i])}</th>`).join('');
-      const tb = (rows||[]).map(r => '<tr>' + indices.map(i =>
-        `<td>${esc(String(r[i] ?? ''))}</td>`
-      ).join('') + '</tr>').join('');
+      const displayCols = prettycols || cols;
+      const th = indices.map(i => `<th>${esc(displayCols[i] || cols[i])}</th>`).join('');
+      const tb = (rows||[]).map(r => '<tr>' + indices.map(i => {
+        const val = String(r[i] ?? '');
+        // Make URLs clickable
+        if (/^https?:\/\//i.test(val)) {
+          return `<td><a href="${esc(val)}" target="_blank" rel="noopener" style="color:var(--blue);text-decoration:none">${esc(val.replace(/^https?:\/\/(www\.)?/,''))}</a></td>`;
+        }
+        return `<td>${esc(val)}</td>`;
+      }).join('') + '</tr>').join('');
       return `<table class="dt"><thead><tr>${th}</tr></thead><tbody>${tb}</tbody></table>`;
     }
 
@@ -656,7 +885,8 @@ async function send() {
       const isContact  = data.stage === 'CONTACT';
       const hasIndustry = data.cols.some(c => c.toLowerCase() === 'company_industry');
       const hasRevenue  = data.cols.some(c => c.toLowerCase() === 'company_revenue_range');
-      const showChart   = !isContact && (hasIndustry || hasRevenue);
+      const hasTAMSection = data.cols.some(c => c.toLowerCase() === 'section') && data.cols.some(c => c.toLowerCase() === 'breakdown_label');
+      const showChart   = !isContact && (hasIndustry || hasRevenue || hasTAMSection);
       const label       = isContact ? '👤 Contacts' : '🏢 Companies';
 
       // ── 2. Chart (only if industry or revenue columns present) ──
@@ -674,13 +904,13 @@ async function send() {
       }
 
       // ── 3. Privacy notice + form (contacts only) ──
-      if (isContact) html += renderLeadGate(tblId, data.cols, data.rows);
+      if (isContact) html += renderLeadGate(tblId, data.cols, data.rows, data.formAlreadyFilled);
 
       // ── 4. Table ──
       html += `
         <div class="block">
           <div class="block-hd">
-            <span class="block-label">${label} · ${rc} result${rc!==1?'s':''}</span>
+            <span class="block-label">${label} · <strong style="font-size:12.5px;color:var(--navy)">${rc}</strong> result${rc!==1?'s':''}</span>
             <button class="block-toggle" onclick="toggleBlock('${tblId}',this)">hide</button>
           </div>
           <div class="block-body open" id="${tblId}">
@@ -698,9 +928,16 @@ async function send() {
     if (data.cols?.length && data.rows?.length && data.stage !== 'CONTACT') {
       const hasInd = data.cols.some(c => c.toLowerCase() === 'company_industry');
       const hasRev = data.cols.some(c => c.toLowerCase() === 'company_revenue_range');
-      if (hasInd || hasRev) {
+      const hasTAM = data.cols.some(c => c.toLowerCase() === 'section') && data.cols.some(c => c.toLowerCase() === 'breakdown_label');
+      // For listing queries, use the server-provided chartData (full dataset aggregate)
+      const chartCols = data.chartData?.cols || data.cols;
+      const chartRows = data.chartData?.rows || data.rows;
+      const hasTAMChart = chartCols.some(c => c.toLowerCase() === 'section') && chartCols.some(c => c.toLowerCase() === 'breakdown_label');
+      const hasIndChart = chartCols.some(c => c.toLowerCase() === 'company_industry');
+      const hasRevChart = chartCols.some(c => c.toLowerCase() === 'company_revenue_range');
+      if (hasInd || hasRev || hasTAM || hasTAMChart || hasIndChart || hasRevChart) {
         requestAnimationFrame(() => {
-          const rendered = renderSmartCharts(data.cols, data.rows, `chartinner_${chrId}`);
+          const rendered = renderSmartCharts(chartCols, chartRows, `chartinner_${chrId}`);
           if (!rendered) {
             const blk = document.getElementById(`chartblock_${chrId}`);
             if (blk) blk.style.display = 'none';
@@ -711,6 +948,8 @@ async function send() {
     }
 
     history.push({ question:q, sql:data.sql, explanation:data.explanation, interpretation:data.answer, rowCount:data.rowCount });
+    // Carry rolling context forward so next turn's summary is incremental
+    if (data._rollingContext) history._rollingContext = data._rollingContext;
 
   } catch(e) {
     placeholder.remove();
