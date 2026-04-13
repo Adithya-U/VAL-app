@@ -48,7 +48,6 @@ header::before { content:''; position:absolute; inset:0; background:radial-gradi
 .val-name { font-size:20px; font-weight:600; color:#fff; letter-spacing:-.3px; }
 .val-sub { font-size:11px; color:rgba(255,255,255,.65); margin-top:1px; font-weight:400; letter-spacing:.2px; }
 .header-right { display:flex; align-items:center; gap:10px; }
-.bbm-badge { font-size:10.5px; font-weight:500; color:rgba(255,255,255,.7); background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.18); padding:3px 9px; border-radius:20px; white-space:nowrap; }
 #new-chat-btn { font-size:12px; font-weight:500; color:#fff; background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.22); border-radius:var(--radius-sm); padding:6px 12px; cursor:pointer; transition:background .15s; white-space:nowrap; font-family:inherit; }
 #new-chat-btn:hover { background:rgba(255,255,255,.2); }
 .status-bar { display:flex; align-items:center; gap:7px; padding:8px 0 12px; position:relative; z-index:1; }
@@ -158,7 +157,6 @@ textarea#q::placeholder { color:var(--text-muted); }
 
 @media (max-width:640px) {
   .val-name { font-size:17px; }
-  .bbm-badge { display:none; }
   header { padding:0 14px; }
   .header-inner { padding:10px 0; }
   .msg-row.user .bubble { max-width:90%; }
@@ -187,7 +185,6 @@ textarea#q::placeholder { color:var(--text-muted); }
         </div>
       </div>
       <div class="header-right">
-        <span class="bbm-badge">bbm</span>
         <button id="new-chat-btn" onclick="newChat()">+ New Chat</button>
       </div>
     </div>
@@ -203,7 +200,7 @@ textarea#q::placeholder { color:var(--text-muted); }
       <div id="empty">
         <div class="empty-sparkle">✦</div>
         <div class="empty-title" id="e-title">Connecting…</div>
-        <div class="empty-sub" id="e-sub">BiBi is warming up.</div>
+        <div class="empty-sub" id="e-sub">warming up.</div>
         <div class="chips" id="chips"></div>
         <div id="beta-note" style="display:none;margin-top:18px;padding:8px 16px;background:#fff;border:1px solid var(--border);border-radius:20px;font-size:11.5px;color:var(--text-muted);letter-spacing:.2px;">
           <span style="font-weight:600;color:var(--blue);">Beta Preview</span> · Data reflects intent signals from the past 30 days
@@ -806,7 +803,7 @@ async function send() {
   appendMsg('user', `<div class="bubble">${esc(q)}</div>`);
 
   const placeholder = appendMsg('bot', `
-    <div class="stage" id="stage">✦ BiBi is thinking…</div>
+    <div class="stage" id="stage">✦Thinking…</div>
     <div class="bubble"><div class="dots"><span></span><span></span><span></span></div></div>
   `);
 
@@ -817,7 +814,7 @@ async function send() {
   };
 
   try {
-    setStage('✦ BiBi is thinking…');
+    setStage('✦Thinking…');
 
     const resp = await fetch('/api/chat', {
       method:'POST', headers:{'Content-Type':'application/json'},
@@ -830,7 +827,7 @@ async function send() {
       })
     });
 
-    setStage('✦ BiBi is thinking…');
+    setStage('✦Thinking…');
     const data = await resp.json();
     if (data.error) throw new Error(data.error);
 
