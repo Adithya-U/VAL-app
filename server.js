@@ -28,12 +28,12 @@ app.get("/bobit-logo.png", (req, res) => {
 //  SECTION 1 — CREDENTIALS
 // ============================================================
 const CONFIG = {
-  ANTHROPIC_API_KEY       : process.env.ANTHROPIC_API_KEY     ,
-  DATABRICKS_HOST         : process.env.DATABRICKS_HOST        ,
-  DATABRICKS_TOKEN        : process.env.DATABRICKS_TOKEN        ,
-  DATABRICKS_WAREHOUSE_ID : process.env.DATABRICKS_WAREHOUSE_ID ,
+  ANTHROPIC_API_KEY       : process.env.ANTHROPIC_API_KEY ,
+  DATABRICKS_HOST         : process.env.DATABRICKS_HOST    ,    
+  DATABRICKS_TOKEN        : process.env.DATABRICKS_TOKEN    ,    
+  DATABRICKS_WAREHOUSE_ID : process.env.DATABRICKS_WAREHOUSE_ID, 
   DATABRICKS_CATALOG      : process.env.DATABRICKS_CATALOG      ,
-  DATABRICKS_SCHEMA       : process.env.DATABRICKS_SCHEMA      ,
+  DATABRICKS_SCHEMA       : process.env.DATABRICKS_SCHEMA       ,
   DATABRICKS_TABLE        : process.env.DATABRICKS_TABLE        ,
   LOG_TABLE               : "bobit_datalake.default.bbm_demo_logs",
   LEADS_TABLE             : "bobit_datalake.default.bbm_demo_leads",
@@ -101,9 +101,9 @@ COLUMNS:
   companycity, companyState, companyzipcode, companyCountry, companyContinent,
   companyEmployeeRange, company_industry,
   company_revenue (numeric), company_revenue_range (string),
-  company_region, company_is_gov ('Yes' or 'No'),
+  company_region ('Dallas','Chicago','Houston'.... contains city names),
   fleet_size ('500-999','50-99','2500+','250-499','1000-2499','100-249'),
-  fleet_type,
+  fleet_type -- contains values like Medium-Duty Trucks,Vans/SUVs Trailers etc,
   topic  -- contains product/service interest signals: Asset Tracking, Commercial Pest Control, Fleet Fuel Cards, GPS, Ground Transportation, HVAC (Heating, Ventilation, & Air Conditioning), Route Optimization, Telematics, Temperature Controlled Shipping, Transport & Freight Trucks
 
   -- Contact fields (may be masked for unauthenticated users)
