@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>VAL — Bobit Business Media</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root {
+  --teal-dark  : #1a5c6b;
+  --teal       : #1e7a82;
+  --teal-mid   : #2a9a8e;
+  --teal-bright: #2dc4b0;
+  --teal-light : #e6f6f5;
+  --teal-pale  : #f0faf9;
+  --bg         : #f4f6f6;
+  --surface    : #ffffff;
+  --border     : #dde8e8;
+  --border-mid : #c4d8d8;
+  --text       : #1a2424;
+  --text-mid   : #3d5555;
+  --text-muted : #6b8888;
+  --green      : #22a06b;
+  --amber      : #b45309;
+  --red        : #c0392b;
+  --radius-sm  : 6px;
+  --radius     : 10px;
+  --radius-lg  : 14px;
+  --shadow     : 0 1px 4px rgba(26,92,107,.08), 0 4px 16px rgba(26,92,107,.06);
+  --shadow-sm  : 0 1px 3px rgba(26,92,107,.1);
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+
+/* ── App shell ── */
+#app { display: flex; flex-direction: column; height: 100dvh; max-width: 900px; margin: 0 auto; background: var(--surface); box-shadow: var(--shadow); }
+
+/* ── Header ── */
+header { background: linear-gradient(135deg, var(--teal-dark) 0%, var(--teal) 60%, var(--teal-mid) 100%); padding: 0 20px; flex-shrink: 0; position: relative; overflow: hidden; }
+header::before { content:''; position:absolute; inset:0; background:radial-gradient(ellipse at 80% 50%, rgba(45,196,176,.18) 0%, transparent 65%); pointer-events:none; }
+.header-inner { display:flex; align-items:center; justify-content:space-between; padding:14px 0; gap:12px; position:relative; z-index:1; }
+.val-brand { display:flex; align-items:center; gap:10px; }
+.val-icon { width:36px; height:36px; background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.25); border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:17px; flex-shrink:0; }
+.val-name { font-size:20px; font-weight:600; color:#fff; letter-spacing:-.3px; }
+.val-sub { font-size:11px; color:rgba(255,255,255,.65); margin-top:1px; font-weight:400; letter-spacing:.2px; }
+.header-right { display:flex; align-items:center; gap:10px; }
+.bbm-badge { font-size:10.5px; font-weight:500; color:rgba(255,255,255,.7); background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.18); padding:3px 9px; border-radius:20px; white-space:nowrap; }
+#new-chat-btn { font-size:12px; font-weight:500; color:#fff; background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.22); border-radius:var(--radius-sm); padding:6px 12px; cursor:pointer; transition:background .15s; white-space:nowrap; font-family:inherit; }
+#new-chat-btn:hover { background:rgba(255,255,255,.2); }
+.status-bar { display:flex; align-items:center; gap:7px; padding:8px 0 12px; position:relative; z-index:1; }
+.status-dot { width:6px; height:6px; border-radius:50%; background:rgba(255,255,255,.35); flex-shrink:0; transition:background .3s; }
+.status-dot.ok   { background:#4ade80; box-shadow:0 0 5px rgba(74,222,128,.5); }
+.status-dot.spin { background:#fbbf24; animation:pulse 1.2s infinite; }
+.status-dot.bad  { background:#f87171; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+.status-text { font-size:11.5px; color:rgba(255,255,255,.7); }
+.cat-tag { margin-left:auto; font-size:10.5px; color:rgba(255,255,255,.5); font-family:monospace; background:rgba(0,0,0,.15); padding:2px 7px; border-radius:4px; }
+
+/* ── Chat ── */
+#chat-wrap { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+#chat { flex:1; overflow-y:auto; padding:20px 20px 12px; display:flex; flex-direction:column; gap:18px; scroll-behavior:smooth; }
+#chat::-webkit-scrollbar { width:4px; }
+#chat::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+
+/* ── Empty state ── */
+#empty { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:32px 20px; gap:8px; }
+.empty-sparkle { font-size:32px; margin-bottom:4px; }
+.empty-title { font-size:16px; font-weight:600; color:var(--teal-dark); }
+.empty-sub { font-size:13px; color:var(--text-muted); max-width:360px; }
+.chips { display:flex; flex-wrap:wrap; gap:7px; justify-content:center; margin-top:14px; max-width:580px; }
+.chip { padding:6px 13px; background:var(--teal-pale); border:1px solid var(--border); border-radius:20px; font-size:12px; color:var(--teal-dark); cursor:pointer; transition:all .15s; font-weight:500; }
+.chip:hover { background:var(--teal-light); border-color:var(--teal-bright); }
+
+/* ── Messages ── */
+.msg-row { display:flex; gap:10px; align-items:flex-start; }
+.msg-row.user { flex-direction:row-reverse; }
+.avatar { width:30px; height:30px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:600; }
+.avatar.val  { background:linear-gradient(135deg, var(--teal-dark), var(--teal-mid)); color:#fff; font-size:12px; }
+.avatar.user { background:#e8f4f3; color:var(--teal-dark); }
+.msg-body { flex:1; min-width:0; }
+.msg-row.user .msg-body { display:flex; flex-direction:column; align-items:flex-end; }
+.bubble { padding:11px 14px; border-radius:var(--radius-lg); font-size:13.5px; line-height:1.65; max-width:100%; }
+.msg-row.user .bubble { background:var(--teal-dark); color:#fff; border-radius:var(--radius-lg) var(--radius-lg) 4px var(--radius-lg); max-width:75%; }
+.msg-row.bot .bubble { background:var(--surface); border:1px solid var(--border); border-radius:4px var(--radius-lg) var(--radius-lg) var(--radius-lg); color:var(--text); box-shadow:var(--shadow-sm); }
+.stage { font-size:11.5px; font-weight:500; color:var(--amber); display:flex; align-items:center; gap:5px; padding:0 2px 4px; }
+.stage.done { color:var(--green); }
+.stage.err  { color:var(--red); }
+.dots { display:inline-flex; gap:4px; align-items:center; padding:6px 2px; }
+.dots span { width:5px; height:5px; border-radius:50%; background:var(--border-mid); animation:bop .9s infinite; }
+.dots span:nth-child(2) { animation-delay:.15s; }
+.dots span:nth-child(3) { animation-delay:.3s; }
+@keyframes bop { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-5px)} }
+
+/* ── Blocks ── */
+.block { margin-top:8px; border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; font-size:12px; }
+.block-hd { display:flex; align-items:center; justify-content:space-between; padding:7px 12px; background:var(--teal-pale); border-bottom:1px solid var(--border); }
+.block-label { font-size:10.5px; font-weight:600; text-transform:none; letter-spacing:.7px; color:var(--teal-dark); }
+.block-toggle { background:none; border:none; font-size:11.5px; color:var(--teal); cursor:pointer; font-family:inherit; font-weight:500; padding:0; }
+.block-toggle:hover { color:var(--teal-dark); }
+.block-body { display:none; }
+.block-body.open { display:block; }
+pre.sql-pre { padding:10px 13px; background:#f8fafa; font-family:monospace; font-size:11.5px; color:var(--teal-dark); white-space:pre-wrap; word-break:break-word; line-height:1.55; }
+.tbl-wrap { overflow-x:auto; max-height:280px; overflow-y:auto; }
+table.dt { width:100%; border-collapse:collapse; font-size:11.5px; font-family:monospace; }
+table.dt th { padding:6px 10px; text-align:left; background:var(--teal-pale); color:var(--teal-dark); font-weight:600; border-bottom:1px solid var(--border); position:sticky; top:0; white-space:nowrap; font-size:10.5px; text-transform:none; letter-spacing:.5px; }
+table.dt td { padding:5px 10px; border-bottom:1px solid var(--border); color:var(--text-mid); white-space:nowrap; }
+table.dt tr:last-child td { border:none; }
+table.dt tr:hover td { background:var(--teal-pale); }
+.err-box { background:#fef2f2; border:1px solid #fecaca; border-radius:var(--radius); padding:10px 13px; font-size:12.5px; color:var(--red); margin-top:6px; }
+
+/* ── Charts ── */
+.charts-wrap { display:flex; gap:16px; padding:14px; flex-wrap:wrap; }
+.chart-box { flex:1; min-width:220px; }
+.chart-box h4 { font-size:11px; font-weight:600; text-transform:none; letter-spacing:.6px; color:var(--teal-dark); margin-bottom:8px; }
+.chart-box canvas { max-height:220px; }
+.chart-solo { padding:14px; }
+.chart-solo canvas { max-height:260px; width:100% !important; }
+
+/* ── Contact masking ── */
+.contact-masked { filter:blur(4px); user-select:none; pointer-events:none; }
+
+/* ── Lead gate ── */
+.lead-gate { margin:12px 14px 14px; border:1.5px solid var(--teal-bright); border-radius:var(--radius-lg); overflow:hidden; }
+.lead-gate-hd { padding:12px 16px 8px; background:linear-gradient(135deg, var(--teal-dark), var(--teal-mid)); color:#fff; }
+.lead-gate-title { font-size:13px; font-weight:600; margin-bottom:2px; }
+.lead-gate-sub { font-size:11px; color:rgba(255,255,255,.75); }
+.lead-gate-body { padding:14px 16px; display:flex; flex-direction:column; gap:9px; background:var(--teal-pale); }
+.lead-row { display:flex; gap:9px; }
+.lead-field { flex:1; display:flex; flex-direction:column; gap:3px; }
+.lead-field label { font-size:10.5px; font-weight:600; color:var(--teal-dark); text-transform:none; letter-spacing:.5px; }
+.lead-field input { padding:7px 10px; border:1.5px solid var(--border-mid); border-radius:var(--radius-sm); font-size:13px; font-family:inherit; color:var(--text); background:var(--surface); outline:none; transition:border-color .2s; }
+.lead-field input:focus { border-color:var(--teal-bright); }
+.lead-field input::placeholder { color:var(--text-muted); }
+.lead-submit { width:100%; padding:10px; background:var(--teal-dark); color:#fff; border:none; border-radius:var(--radius); font-size:13px; font-weight:600; font-family:inherit; cursor:pointer; transition:background .15s; margin-top:2px; }
+.lead-submit:hover { background:var(--teal); }
+.lead-submit:disabled { opacity:.45; cursor:not-allowed; }
+.lead-success { margin:10px 14px 14px; padding:11px 14px; background:#ecfdf5; border:1px solid #6ee7b7; border-radius:var(--radius); font-size:12.5px; color:var(--green); font-weight:500; }
+
+/* ── Input ── */
+.input-area { padding:12px 16px 14px; border-top:1px solid var(--border); background:var(--surface); flex-shrink:0; }
+.input-row { display:flex; gap:8px; align-items:flex-end; background:var(--bg); border:1.5px solid var(--border-mid); border-radius:var(--radius-lg); padding:8px 8px 8px 14px; transition:border-color .2s; }
+.input-row:focus-within { border-color:var(--teal-bright); }
+textarea#q { flex:1; background:transparent; border:none; outline:none; resize:none; font-size:13.5px; font-family:inherit; color:var(--text); min-height:22px; max-height:100px; line-height:1.55; padding:0; }
+textarea#q::placeholder { color:var(--text-muted); }
+#send { width:34px; height:34px; background:var(--teal-dark); border:none; border-radius:var(--radius-sm); cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:background .15s, opacity .15s; }
+#send:hover { background:var(--teal); }
+#send:disabled { opacity:.35; cursor:not-allowed; }
+#send svg { width:15px; height:15px; fill:none; stroke:#fff; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+.input-hint { font-size:10.5px; color:var(--text-muted); margin-top:6px; text-align:center; }
+
+@media (max-width:640px) {
+  .val-name { font-size:17px; }
+  .bbm-badge { display:none; }
+  header { padding:0 14px; }
+  .header-inner { padding:10px 0; }
+  .msg-row.user .bubble { max-width:90%; }
+  #chat { padding:14px 12px 10px; gap:14px; }
+  .input-area { padding:10px 12px 12px; }
+  .chips { gap:5px; }
+  .chip { font-size:11px; padding:5px 10px; }
+  .lead-row { flex-direction:column; }
+  .charts-wrap { flex-direction:column; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="header-inner">
+      <div class="val-brand">
+        <div class="val-icon">✦</div>
+        <div>
+          <div class="val-name">VAL</div>
+          <div class="val-sub">AI Market Intelligence · Bobit Business Media</div>
+        </div>
+      </div>
+      <div class="header-right">
+        <span class="bbm-badge">bbm</span>
+        <button id="new-chat-btn" onclick="newChat()">+ New Chat</button>
+      </div>
+    </div>
+    <div class="status-bar">
+      <div class="status-dot spin" id="sdot"></div>
+      <span class="status-text" id="stxt">Connecting…</span>
+      <span class="cat-tag" id="cat-tag">—</span>
+    </div>
+  </header>
+
+  <div id="chat-wrap">
+    <div id="chat">
+      <div id="empty">
+        <div class="empty-sparkle">✦</div>
+        <div class="empty-title" id="e-title">Connecting…</div>
+        <div class="empty-sub" id="e-sub">VAL is warming up.</div>
+        <div class="chips" id="chips"></div>
+      </div>
+    </div>
+    <div class="input-area">
+      <div class="input-row">
+        <textarea id="q" placeholder="Ask VAL about your data…" rows="1"
+          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send()}"
+          oninput="resize(this)" disabled></textarea>
+        <button id="send" onclick="send()" disabled>
+          <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        </button>
+      </div>
+      <div class="input-hint">Enter to send · Shift+Enter for new line</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────
+let history          = [];
+let busy             = false;
+let sessionToken     = null;
+let turnNumber       = 0;
+// Generate a session ID that persists for this browser tab
+const SESSION_ID = 'sess_' + Math.random().toString(36).slice(2) + '_' + Date.now();
+
+// Chart palette
+const CHART_COLORS = [
+  '#1e7a82','#2dc4b0','#e07b39','#f4c542','#5b8dd9',
+  '#9b59b6','#2ecc71','#e74c3c','#1abc9c','#f39c12'
+];
+
+// ── Boot ──────────────────────────────────────────────────────
+(async () => {
+  try {
+    const cfg = await fetch('/config').then(r => r.json());
+    document.getElementById('cat-tag').textContent = `${cfg.catalog}.${cfg.schema}`;
+  } catch (_) {}
+  renderChips([
+    "Show me a list of companies researching telematics solutions",
+    "I'd like to offer Route Optimization solutions to companies having 500+ fleets",
+    "I need to build an outreach program to companies looking for Fleet Fuel cards"
+  ]);
+
+  // Enable UI immediately — don't block on slow Databricks ping
+  setStatus('ok', 'Connected · Ready');
+  document.getElementById('e-title').textContent = 'Ready — ask VAL anything';
+  document.getElementById('e-sub').textContent   = 'Ask about market size, companies, contacts, fleet data, or intent signals.';
+  document.getElementById('q').disabled    = false;
+  document.getElementById('send').disabled = false;
+
+  // Verify connection quietly in background
+  fetch('/api/ping').then(r => r.json()).then(res => {
+    if (!res.ok) setStatus('spin', 'Reconnecting…');
+  }).catch(() => setStatus('spin', 'Connecting…'));
+})();
+
+function setStatus(type, text) {
+  document.getElementById('sdot').className = 'status-dot ' + type;
+  document.getElementById('stxt').textContent = text;
+}
+
+// ── Chips ──────────────────────────────────────────────────────
+function renderChips(qs) {
+  document.getElementById('chips').innerHTML =
+    qs.map(q => `<div class="chip" onclick="setQ(this.innerText)">${esc(q)}</div>`).join('');
+}
+function setQ(t) {
+  if (busy) return;
+  const ta = document.getElementById('q');
+  ta.value = t; ta.focus(); resize(ta);
+  send();
+}
+
+// ── New chat ──────────────────────────────────────────────────
+function newChat() {
+  if (busy) return;
+  history = []; turnNumber = 0;
+  const chat = document.getElementById('chat');
+  chat.innerHTML = '';
+  const empty = document.createElement('div');
+  empty.id = 'empty';
+  empty.innerHTML = `
+    <div class="empty-sparkle">✦</div>
+    <div class="empty-title">Ready — ask VAL anything</div>
+    <div class="empty-sub">Start a new conversation about your data.</div>
+    <div class="chips" id="chips"></div>`;
+  chat.appendChild(empty);
+  renderChips([
+    "Show me a list of companies researching telematics solutions",
+    "I'd like to offer Route Optimization solutions to companies having 500+ fleets",
+    "I need to build an outreach program to companies looking for Fleet Fuel cards"
+  ]);
+}
+
+function resize(el) { el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,100)+'px'; }
+function scrollBot() { const c=document.getElementById('chat'); c.scrollTop=c.scrollHeight; }
+
+function appendMsg(role, html) {
+  document.getElementById('empty')?.remove();
+  const chat=document.getElementById('chat');
+  const row=document.createElement('div');
+  row.className='msg-row '+role;
+  row.innerHTML=`<div class="avatar ${role}">${role==='bot'?'✦':'👤'}</div><div class="msg-body">${html}</div>`;
+  chat.appendChild(row);
+  scrollBot();
+  return row;
+}
+
+function toggleBlock(id, btn) {
+  const el=document.getElementById(id);
+  if (!el) return;
+  const open=el.classList.toggle('open');
+  btn.textContent=open?'hide':'show';
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function fmt(text) {
+  return esc(text)
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/`(.+?)`/g,'<code style="font-family:monospace;font-size:11.5px;background:#f0faf9;color:var(--teal-dark);padding:1px 5px;border-radius:4px">$1</code>')
+    .replace(/^[-•] (.+)$/gm,'<li style="margin-left:16px;margin-bottom:0px">$1</li>')
+    .replace(/^\d+\. (.+)$/gm,'<li style="margin-left:16px;margin-bottom:0px">$1</li>')
+    .replace(/(<li[^>]*>.*?<\/li>)(\s*<br>\s*(<li[^>]*>))/g, '$1$3')
+    .replace(/(<li[^>]*>(?:.*?<\/li>\s*)+)/gs, '<ul style="margin:4px 0;padding-left:16px;list-style:disc">$1</ul>')
+    .replace(/\n/g,'<br>')
+    .replace(/<\/li><br>/g, '</li>');
+    
+}
+
+// ── Chart helpers ───────────────────────────────────────────
+// Detect if result is an aggregate/breakdown (has a count col + one label col)
+function isAggregateResult(cols) {
+  if (!cols || cols.length < 2 || cols.length > 4) return false;
+  const lower = cols.map(c => c.toLowerCase());
+  const hasCount = lower.some(c => c.includes('count') || c.includes('_count') || c === 'company_count');
+  const hasLabel = lower.some(c =>
+    c.includes('state') || c.includes('industry') || c.includes('fleet') ||
+    c.includes('region') || c.includes('revenue') || c.includes('level') ||
+    c.includes('type') || c.includes('gov') || c.includes('continent')
+  );
+  return hasCount && hasLabel;
+}
+
+// ── Chart state ──────────────────────────────────────────────
+let chartInstances = {};
+
+function renderSmartCharts(cols, rows, containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return false;
+
+  const lower      = cols.map(c => c.toLowerCase());
+  const hasIndustry = lower.includes('company_industry');
+  const hasRevenue  = lower.includes('company_revenue_range');
+  // For company listings, industry values come directly from rows (no separate count col needed)
+  // For aggregate queries, a count col will be present
+  const countIdx   = lower.findIndex(c => c.includes('count'));
+
+  const PALETTE = [
+    '#1e7a82','#2dc4b0','#e07b39','#f4c542','#5b8dd9',
+    '#9b59b6','#2ecc71','#e74c3c','#1abc9c','#f39c12','#34495e','#16a085'
+  ];
+
+  const boxes = [];
+
+  if (hasIndustry) {
+    const indIdx = lower.indexOf('company_industry');
+    let data;
+    if (countIdx !== -1) {
+      // Aggregate query: use count column (distinct companies)
+      data = [...rows]
+        .filter(r => r[indIdx] && r[indIdx] !== 'null' && r[indIdx] !== '')
+        .sort((a,b) => parseFloat(b[countIdx]||0) - parseFloat(a[countIdx]||0))
+        .slice(0, 10)
+        .map(r => ({ label: String(r[indIdx]), value: parseFloat(r[countIdx]) || 0 }));
+    } else {
+      // Listing query: count distinct companies by tallying unique company rows
+      const seen = new Set();
+      const tally = {};
+      rows.forEach(r => {
+        const compIdx = lower.indexOf('company_name');
+        const key = compIdx !== -1 ? String(r[compIdx]) : null;
+        const ind = String(r[indIdx] || '');
+        if (!ind || ind === 'null') return;
+        if (key && seen.has(key + '|' + ind)) return;
+        if (key) seen.add(key + '|' + ind);
+        tally[ind] = (tally[ind] || 0) + 1;
+      });
+      data = Object.entries(tally).sort((a,b) => b[1]-a[1]).slice(0,10).map(([label,value]) => ({label,value}));
+    }
+    if (data.length > 1) {
+      const cid = containerId + '_ind';
+      boxes.push({
+        html: `<div class="chart-box"><h4>🏭 Industry Breakdown</h4><canvas id="${cid}"></canvas></div>`,
+        render() {
+          const ctx = document.getElementById(cid)?.getContext('2d');
+          if (!ctx) return;
+          if (chartInstances[cid]) chartInstances[cid].destroy();
+          const labels = data.map(d => String(d.label)), values = data.map(d => d.value);
+          const total  = values.reduce((a,b) => a+b, 0);
+          chartInstances[cid] = new Chart(ctx, {
+            type: 'doughnut',
+            data: { labels, datasets:[{ data:values, backgroundColor:PALETTE, borderWidth:2, borderColor:'#fff' }] },
+            options: { responsive:true, plugins:{
+              legend:{ position:'right', labels:{font:{size:10}, boxWidth:12, padding:6} },
+              tooltip: {
+  callbacks: {
+    label: (c) => {
+      let val = c.parsed;
+      if (typeof val === 'object') {
+        val = val.y ?? val.x ?? 0;
+      }
+
+      const p = total ? ((val / total) * 100).toFixed(1) : 0;
+      return ` ${Number(val).toLocaleString()} companies (${p}%)`;
+    }
+  }
+}
+            }}
+          });
+        }
+      });
+    }
+  }
+
+  if (hasRevenue) {
+    const revIdx = lower.indexOf('company_revenue_range');
+    let data;
+    if (countIdx !== -1) {
+      data = [...rows]
+        .filter(r => r[revIdx] && r[revIdx] !== 'null' && r[revIdx] !== '')
+        .map(r => ({ label: String(r[revIdx]), value: parseFloat(r[countIdx]) || 0 }));
+    } else {
+      const seen = new Set();
+      const tally = {};
+      rows.forEach(r => {
+        const compIdx = lower.indexOf('company_name');
+        const key = compIdx !== -1 ? String(r[compIdx]) : null;
+        const rev = String(r[revIdx] || '');
+        if (!rev || rev === 'null') return;
+        if (key && seen.has(key + '|' + rev)) return;
+        if (key) seen.add(key + '|' + rev);
+        tally[rev] = (tally[rev] || 0) + 1;
+      });
+      data = Object.entries(tally).map(([label,value]) => ({label,value}));
+    }
+    if (data.length > 1) {
+      const cid = containerId + '_rev';
+      boxes.push({
+        html: `<div class="chart-box"><h4>💰 Revenue Distribution</h4><canvas id="${cid}"></canvas></div>`,
+        render() {
+          const ctx = document.getElementById(cid)?.getContext('2d');
+          if (!ctx) return;
+          if (chartInstances[cid]) chartInstances[cid].destroy();
+          chartInstances[cid] = new Chart(ctx, {
+            type: 'bar',
+            data: { labels:data.map(d=>d.label), datasets:[{ data:data.map(d=>d.value), backgroundColor:PALETTE[0], borderRadius:4 }] },
+            options: { responsive:true,
+              plugins: {
+  legend: { display: false },
+  tooltip: {
+    callbacks: {
+      label: (c) => {
+        const val = typeof c.parsed === 'object' ? c.parsed.y : c.parsed;
+        return ` ${Number(val).toLocaleString()} companies`;
+      }
+    }
+  }
+},
+              scales:{ x:{ticks:{font:{size:9},maxRotation:40},grid:{display:false}}, y:{ticks:{font:{size:10}},grid:{color:'rgba(0,0,0,.05)'}} }
+            }
+          });
+        }
+      });
+    }
+  }
+
+  if (!boxes.length) return false;
+  container.innerHTML = `<div class="charts-wrap">${boxes.map(b=>b.html).join('')}</div>`;
+  boxes.forEach(b => b.render());
+  return true;
+}
+
+
+// ── Lead gate ─────────────────────────────────────────────────
+function renderLeadGate(tblId, cols, rows) {
+  return `
+    <div class="lead-gate" id="gate_${tblId}">
+      <div class="lead-gate-hd">
+        <div class="lead-gate-title">🔒 Privacy Notice</div>
+        <div class="lead-gate-sub" style="color:rgba(255,255,255,.85);font-size:12px;line-height:1.5;margin-top:4px;">The requested data contains email, phone and other PII information. Personal details have been masked for privacy. If you need complete contact information, please fill out the request form below and we'll email you the details.</div>
+      </div>
+      <div class="lead-gate-body">
+        <div class="lead-row">
+          <div class="lead-field"><label>First Name *</label><input id="lf_fn_${tblId}" type="text" placeholder="Jane" required></div>
+          <div class="lead-field"><label>Last Name *</label><input id="lf_ln_${tblId}" type="text" placeholder="Smith" required></div>
+        </div>
+        <div class="lead-row">
+          <div class="lead-field"><label>Work Email *</label><input id="lf_em_${tblId}" type="email" placeholder="jane@company.com" required></div>
+          <div class="lead-field"><label>Phone</label><input id="lf_ph_${tblId}" type="tel" placeholder="(555) 000-0000"></div>
+        </div>
+        <div class="lead-row">
+          <div class="lead-field"><label>Job Title *</label><input id="lf_jt_${tblId}" type="text" placeholder="VP of Sales"></div>
+          <div class="lead-field"><label>Company *</label><input id="lf_co_${tblId}" type="text" placeholder="Acme Corp"></div>
+        </div>
+        <button class="lead-submit" id="lf_btn_${tblId}"
+          onclick="submitLead('${tblId}', ${JSON.stringify(cols).replace(/"/g,'&quot;')}, ${JSON.stringify(rows).replace(/"/g,'&quot;')})">
+          Request Contact Details →
+        </button>
+      </div>
+    </div>`;
+}
+
+async function submitLead(tblId, cols, rows) {
+  const get = id => document.getElementById(id)?.value?.trim() || '';
+  const firstName = get(`lf_fn_${tblId}`);
+  const lastName  = get(`lf_ln_${tblId}`);
+  const email     = get(`lf_em_${tblId}`);
+  const phone     = get(`lf_ph_${tblId}`);
+  const jobTitle  = get(`lf_jt_${tblId}`);
+  const company   = get(`lf_co_${tblId}`);
+
+  if (!firstName || !lastName || !email || !jobTitle || !company) { alert('Please fill in all required fields.'); return; }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { alert('Please enter a valid work email.'); return; }
+
+  const btn = document.getElementById(`lf_btn_${tblId}`);
+  btn.disabled = true; btn.textContent = 'Submitting…';
+
+  try {
+    const resp = await fetch('/api/lead', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ firstName, lastName, email, phone, jobTitle, company, sessionId: SESSION_ID })
+    });
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error);
+
+    sessionToken = data.sessionToken;
+
+    // Replace gate with confirmation — data stays masked, details will be emailed
+    const gate = document.getElementById(`gate_${tblId}`);
+    if (gate) gate.outerHTML = `
+      <div class="lead-success" style="margin:10px 0 0;padding:14px 16px;background:#ecfdf5;border:1px solid #6ee7b7;border-radius:var(--radius);font-size:13px;color:#065f46;line-height:1.6;">
+        ✅ <strong>Request received!</strong> The full contact details will be sent to <strong>${esc(email)}</strong> shortly.
+      </div>`;
+  } catch(e) {
+    btn.disabled = false; btn.textContent = 'Request Contact Details →';
+    alert('Something went wrong: ' + e.message);
+  }
+}
+
+// ── Contact table ─────────────────────────────────────────────
+const MASKED_COLS = ['ct_last_name','ct_email','ct_phone','ct_mobile_phone'];
+
+function maskValue(col, val) {
+  if (!val || val === 'null') return '—';
+  const c = col.toLowerCase();
+  if (c === 'ct_last_name') return val.charAt(0).toUpperCase() + '.';
+  if (c === 'ct_email') { const [u,d]=val.split('@'); return d ? u.charAt(0)+'***@'+d : '***@***.***'; }
+  if (c === 'ct_phone' || c === 'ct_mobile_phone') { const d=val.replace(/\D/g,''); return d.length>=4?'(***) ***-'+d.slice(-4):'***-****'; }
+  return val;
+}
+
+function renderContactTable(cols, rows, masked) {
+  const th = cols.map(c=>`<th>${esc(c)}</th>`).join('');
+  const tb = rows.map(r=>'<tr>'+cols.map((col,i)=>{
+    const raw=String(r[i]??'');
+    const isMask=masked && MASKED_COLS.includes(col.toLowerCase());
+    return `<td${isMask?' class="contact-masked"':''}>${isMask?maskValue(col,raw):esc(raw)}</td>`;
+  }).join('')+'</tr>').join('');
+  return `<table class="dt"><thead><tr>${th}</tr></thead><tbody>${tb}</tbody></table>`;
+}
+
+// ── Send ──────────────────────────────────────────────────────
+async function send() {
+  if (busy) return;
+  const ta = document.getElementById('q');
+  const q  = ta.value.trim();
+  if (!q) return;
+
+  ta.value=''; ta.style.height='auto';
+  busy=true; turnNumber++;
+  document.getElementById('send').disabled=true;
+
+  appendMsg('user', `<div class="bubble">${esc(q)}</div>`);
+
+  const placeholder = appendMsg('bot', `
+    <div class="stage" id="stage">✦ VAL is thinking…</div>
+    <div class="bubble"><div class="dots"><span></span><span></span><span></span></div></div>
+  `);
+
+  const setStage = (t,cls='') => {
+    const el=document.getElementById('stage');
+    if (el) { el.textContent=t; el.className='stage '+cls; }
+    scrollBot();
+  };
+
+  try {
+    setStage('✦ VAL is thinking…');
+
+    const resp = await fetch('/api/chat', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        question: q,
+        chatHistory: history.filter(t=>t.question),
+        sessionToken,
+        sessionId: SESSION_ID,
+        turnNumber,
+      })
+    });
+
+    setStage('✦ VAL is thinking…');
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error);
+
+    setStage('✓ Done', 'done');
+    placeholder.remove();
+
+    const sqlId  = 'sql_'  + Date.now();
+    const tblId  = 'tbl_'  + Date.now();
+    const chrId  = 'chr_'  + Date.now();
+
+    // Helper: render key insights from server-provided insights string
+    function buildInsights(insightsText) {
+      if (!insightsText || insightsText.trim() === 'NONE' || insightsText.trim() === '') return '';
+      const bullets = insightsText
+        .split('\n')
+        .map(l => l.replace(/^[-•*]\s*/, '').trim())
+        .filter(l => l.length > 0)
+        .slice(0, 3);
+      if (!bullets.length) return '';
+      return `<div class="insights-block" style="margin-top:10px;padding:10px 14px;background:var(--teal-pale);border:1px solid var(--border);border-radius:var(--radius);font-size:12.5px;">
+        <div style="font-size:10.5px;font-weight:600;text-transform:none;letter-spacing:.6px;color:var(--teal-dark);margin-bottom:7px;">💡 Key Insights</div>
+        <ul style="margin:0;padding-left:16px;list-style:disc;display:flex;flex-direction:column;gap:5px;color:var(--text-mid);">
+          ${bullets.map(b=>`<li>${fmt(b)}</li>`).join('')}
+        </ul>
+      </div>`;
+    }
+
+    // ── 1. Acknowledgment bubble ──
+    let html = `<div class="bubble">${fmt(data.answer)}</div>`;
+
+    const prettycols = data.prettycols || data.cols;
+
+    // Helper to build table
+    function buildTable(cols, prettycols, rows) {
+      const skipCols = new Set(['company_id','contact_id']);
+      const indices = cols.map((c,i) => skipCols.has(c.toLowerCase()) ? -1 : i).filter(i => i !== -1);
+      const th = indices.map(i => `<th>${esc(prettycols[i])}</th>`).join('');
+      const tb = (rows||[]).map(r => '<tr>' + indices.map(i =>
+        `<td>${esc(String(r[i] ?? ''))}</td>`
+      ).join('') + '</tr>').join('');
+      return `<table class="dt"><thead><tr>${th}</tr></thead><tbody>${tb}</tbody></table>`;
+    }
+
+    if (data.cols?.length && data.rows?.length) {
+      const rc         = data.rowCount ?? data.rows.length;
+      const isContact  = data.stage === 'CONTACT';
+      const hasIndustry = data.cols.some(c => c.toLowerCase() === 'company_industry');
+      const hasRevenue  = data.cols.some(c => c.toLowerCase() === 'company_revenue_range');
+      const showChart   = !isContact && (hasIndustry || hasRevenue);
+      const label       = isContact ? '👤 Contacts' : '🏢 Companies';
+
+      // ── 2. Chart (only if industry or revenue columns present) ──
+      if (showChart) {
+        html += `
+          <div class="block" id="chartblock_${chrId}">
+            <div class="block-hd">
+              <span class="block-label">📈 Chart</span>
+              <button class="block-toggle" onclick="toggleBlock('${chrId}',this)">hide</button>
+            </div>
+            <div class="block-body open" id="${chrId}">
+              <div id="chartinner_${chrId}"></div>
+            </div>
+          </div>`;
+      }
+
+      // ── 3. Privacy notice + form (contacts only) ──
+      if (isContact) html += renderLeadGate(tblId, data.cols, data.rows);
+
+      // ── 4. Table ──
+      html += `
+        <div class="block">
+          <div class="block-hd">
+            <span class="block-label">${label} · ${rc} result${rc!==1?'s':''}</span>
+            <button class="block-toggle" onclick="toggleBlock('${tblId}',this)">hide</button>
+          </div>
+          <div class="block-body open" id="${tblId}">
+            <div class="tbl-wrap" id="tw_${tblId}">${buildTable(data.cols, prettycols, data.rows)}</div>
+          </div>
+        </div>`;
+
+      // ── 5. Key Insights ──
+      html += buildInsights(data.insights);
+    }
+
+    appendMsg('bot', html);
+
+    // Render charts after DOM insert
+    if (data.cols?.length && data.rows?.length && data.stage !== 'CONTACT') {
+      const hasInd = data.cols.some(c => c.toLowerCase() === 'company_industry');
+      const hasRev = data.cols.some(c => c.toLowerCase() === 'company_revenue_range');
+      if (hasInd || hasRev) {
+        requestAnimationFrame(() => {
+          const rendered = renderSmartCharts(data.cols, data.rows, `chartinner_${chrId}`);
+          if (!rendered) {
+            const blk = document.getElementById(`chartblock_${chrId}`);
+            if (blk) blk.style.display = 'none';
+          }
+          scrollBot();
+        });
+      }
+    }
+
+    history.push({ question:q, sql:data.sql, explanation:data.explanation, interpretation:data.answer, rowCount:data.rowCount });
+
+  } catch(e) {
+    placeholder.remove();
+    appendMsg('bot', `<div class="stage err">✗ Error</div><div class="err-box">${esc(e.message)}</div>`);
+  }
+
+  busy=false;
+  document.getElementById('send').disabled=false;
+  scrollBot();
+}
+</script>
+</body>
+</html>
