@@ -27,10 +27,11 @@ app.get("/bobit-logo.png", (req, res) => {
 // ============================================================
 //  SECTION 1 — CREDENTIALS
 // ============================================================
+
 const CONFIG = {
   ANTHROPIC_API_KEY       : process.env.ANTHROPIC_API_KEY          ,
-  DATABRICKS_HOST         : process.env.DATABRICKS_HOST ,
   DATABRICKS_TOKEN        : process.env.DATABRICKS_TOKEN        ,
+  DATABRICKS_HOST         : process.env.DATABRICKS_HOST,
   DATABRICKS_WAREHOUSE_ID : process.env.DATABRICKS_WAREHOUSE_ID ,
   DATABRICKS_CATALOG      : process.env.DATABRICKS_CATALOG      ,
   DATABRICKS_SCHEMA       : process.env.DATABRICKS_SCHEMA      ,
