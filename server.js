@@ -28,16 +28,17 @@ app.get("/bobit-logo.png", (req, res) => {
 //  SECTION 1 — CREDENTIALS
 // ============================================================
 const CONFIG = {
-  ANTHROPIC_API_KEY       : process.env.ANTHROPIC_API_KEY       ,
-  DATABRICKS_HOST         : process.env.DATABRICKS_HOST         ,
+  ANTHROPIC_API_KEY       : process.env.ANTHROPIC_API_KEY          ,
   DATABRICKS_TOKEN        : process.env.DATABRICKS_TOKEN        ,
   DATABRICKS_WAREHOUSE_ID : process.env.DATABRICKS_WAREHOUSE_ID ,
-  DATABRICKS_CATALOG      : process.env.DATABRICKS_CATALOG    ,
+  DATABRICKS_CATALOG      : process.env.DATABRICKS_CATALOG      ,
   DATABRICKS_SCHEMA       : process.env.DATABRICKS_SCHEMA      ,
   DATABRICKS_TABLE        : process.env.DATABRICKS_TABLE        ,
   LOG_TABLE               : "bobit_datalake.default.bbm_demo_logs",
   LEADS_TABLE             : "bobit_datalake.default.bbm_demo_leads",
 };
+
+
 
 // ============================================================
 //  SECTION 2 — SESSION STORE
@@ -60,15 +61,32 @@ function maskValue(col, val) {
     if (parts.length === 1) return s.charAt(0) + "*".repeat(Math.max(3, s.length - 1));
     const first = parts[0];
     const last  = parts[parts.length - 1];
-    return first + " " + last.charAt(0) + "*".repeat(Math.max(3, last.length - 1));
+    return first.charAt(0) + "*".repeat(Math.max(3, first.length - 1)) + " " + last.charAt(0) + "*".repeat(Math.max(3, last.length - 1));
   }
 
-  if (c === "contact_email") {
-    const atIdx = s.indexOf("@");
-    if (atIdx === -1) return "***@***.***";
-    const domain = s.slice(atIdx + 1);
-    return "*".repeat(Math.max(6, atIdx)) + "@" + domain;
-  }
+if (c === "contact_email") {
+  const atIdx = s.indexOf("@");
+  if (atIdx === -1) return "***@***.***";
+
+  const local = s.slice(0, atIdx);
+  const domain = s.slice(atIdx + 1);
+
+  // Split domain into parts: ["gmail", "com"] or ["test", "gov", "in"]
+  const domainParts = domain.split(".");
+  
+  // Keep only the last extension(s), mask the rest
+  // For multi-part TLDs like .gov.in, keep last 2; otherwise keep last 1
+  const knownMultiTLDs = ["gov", "co", "org", "net", "edu", "ac"];
+  const secondToLast = domainParts[domainParts.length - 2];
+  const keepCount = knownMultiTLDs.includes(secondToLast) ? 2 : 1;
+
+  const maskedParts = domainParts.map((part, i) => {
+    const isVisible = i >= domainParts.length - keepCount;
+    return isVisible ? part : "*".repeat(part.length);
+  });
+
+  return "*".repeat(local.length) + "@" + maskedParts.join(".");
+}
 
   const digits = s.replace(/\D/g, "");
   if (digits.length < 7) return "***-****";
@@ -296,6 +314,9 @@ One single direct sentence acknowledging the question and stating the key findin
 </answer>
 <insights>
 Exactly 2 to 3 tight bullet points (use "- " prefix) surfacing real patterns from the data: dominant state or region, industry concentration, fleet size skew, gov vs private split, top titles, notable companies, TAM totals, etc. Make these genuinely useful observations, not restatements of column names. Base ONLY on actual data returned — never invent. If data is empty or conversational, output: NONE
+NEVER display contact name, contact phone number or contact email in the insights
+NEVER say there are null or empty values, just ignore them in your analysis
+When a user asks for contact name, phone number or email, inform the user that contact details cannot be displayed in the chat and that they can recieve the full details via their work email if they fill the form.
 </insights>`;
 
 // ============================================================
