@@ -41,7 +41,6 @@ const CONFIG = {
 };
 
 
-
 // ============================================================
 //  SECTION 2 — SESSION STORE
 // ============================================================
@@ -149,9 +148,10 @@ SQL RULES:
 - Never SELECT a column that will obviously be all zeros or nulls.
 
 LIMIT RULES (critical — read carefully):
-- If the user explicitly asks for a specific number (e.g. "top 5", "give me 10", "show 20") → use that exact number as the LIMIT , max 200.
-- If the user says "show more", "give me more", "expand", "all", "full list", or a follow-up requesting more after a previous result → use LIMIT 200.
-- If the user does NOT specify any number → default to LIMIT 20.
+- COMPANY LISTING QUERIES always use LIMIT 5. No exceptions. The charts reflect the full dataset via total_count and a separate aggregation — the table always shows exactly 5 rows.
+- If the user explicitly asks for a specific number for a NON-LISTING query (e.g. "top 5", "give me 10", "show 20") → use that exact number as the LIMIT, max 200.
+- If the user says "show more", "give me more", "expand", "all", "full list" → use LIMIT 200 for non-listing queries.
+- If the user does NOT specify any number for a non-listing query → default to LIMIT 20.
 - No other LIMIT values are permitted. Never exceed LIMIT 200.
 
 COMPANY LISTING QUERIES — always use this exact CTE pattern (no exceptions, no SELECT DISTINCT):
@@ -166,14 +166,15 @@ SELECT
   fleet_size, company_revenue_range, company_industry,
   (SELECT COUNT(*) FROM deduped) AS total_count
 FROM deduped
-ORDER BY signal_score DESC
+ORDER BY CASE fleet_size WHEN '2500+' THEN 1 WHEN '1000-2499' THEN 2 WHEN '500-999' THEN 3 WHEN '250-499' THEN 4 WHEN '250 +' THEN 4 WHEN '100-249' THEN 5 WHEN '50-99' THEN 6 WHEN '25-49' THEN 7 WHEN '10-24' THEN 8 WHEN '5-9' THEN 9 WHEN '1-4' THEN 10 ELSE 11 END ASC
 LIMIT 5
 
 - Always include fleet_size and companyState in company listing queries so charts can be rendered.
 - The scalar subquery (SELECT COUNT(*) FROM deduped) gives the true total without CROSS JOIN or row inflation.
 - total_count will appear in every row — the frontend reads it from row[0] automatically.
 - Never use SELECT DISTINCT as a deduplication method for company queries.
-- Always ORDER BY signal_score DESC for company listings.
+- Always ORDER BY fleet size descending for company listings, using this exact CASE expression:
+  ORDER BY CASE fleet_size WHEN '2500+' THEN 1 WHEN '1000-2499' THEN 2 WHEN '500-999' THEN 3 WHEN '250-499' THEN 4 WHEN '250 +' THEN 4 WHEN '100-249' THEN 5 WHEN '50-99' THEN 6 WHEN '25-49' THEN 7 WHEN '10-24' THEN 8 WHEN '5-9' THEN 9 WHEN '1-4' THEN 10 ELSE 11 END ASC
 
 COUNT/AGGREGATE QUERIES — when asked for a count or market breakdown:
 - Do NOT return a single number row. Return a breakdown table using GROUP BY.
@@ -188,9 +189,9 @@ CONTACT QUERIES:
 - Do NOT use DISTINCT company_id for contact queries.
 
 RANKING:
-- Use signal_score and signal_date to rank but NEVER SELECT or display them.
-- When the query involves ranking or "top" results, always use signal_score to prioritize.
-- Always ORDER BY the primary metric: COUNT DESC for aggregates, signal_score DESC for company listings.
+- Use signal_score and signal_date to deduplicate but NEVER SELECT or display them.
+- When the query involves ranking or "top" results, always use signal_score for the ROW_NUMBER() deduplication ONLY.
+- Always ORDER BY the primary metric: COUNT DESC for aggregates, fleet_size CASE expression (largest first) for company listings.
 
 TAM — TOTAL ADDRESSABLE MARKET QUERIES:
 There are TWO distinct TAM question types — you MUST correctly identify which one the user is asking before writing SQL.
@@ -312,7 +313,7 @@ const ANSWER_PROMPT_SUFFIX = `
 RESPONSE STRUCTURE — write only these two XML tags based on the real data provided:
 
 <answer>
-One single direct sentence acknowledging the question and stating the key finding or number. For company listings, say "Showing the top [N] of [total_count] companies actively researching [topic]." — use the actual total_count value from the data. No bullet points, no sub-sections, no markdown tables, no pipes or dashes. Just one clean sentence.
+One single direct sentence acknowledging the question and stating the key finding or number. For company listings, say "Showing [total_count] companies actively researching [topic]." followed by any location/filter context if applicable — use the actual total_count value from the data. Never say "top 5 of" or mention the row limit. No bullet points, no sub-sections, no markdown tables, no pipes or dashes. Just one clean sentence.
 </answer>
 <insights>
 Exactly 2 to 3 tight bullet points (use "- " prefix) surfacing real patterns from the data: dominant state or region, industry concentration, fleet size skew, gov vs private split, top titles, notable companies, TAM totals, etc. Make these genuinely useful observations, not restatements of column names. Base ONLY on actual data returned — never invent. If data is empty or conversational, output: NONE
@@ -619,7 +620,7 @@ app.post("/api/chat", async (req, res) => {
       const dataContext = rows.length === 0
         ? `The query returned 0 rows. Let the user know no data matched their filters.`
         : isListing
-          ? `Total unique companies in dataset: ${totalCount}. Showing top ${rowCount}. Sample rows:\n${previewRows}\nUse ${totalCount} as the total count in your answer. Base insights ONLY on this data — never invent.`
+          ? `Total unique companies in dataset: ${totalCount}. Showing top ${rowCount} rows in the table. Sample rows:\n${previewRows}\nIn your answer, say "Showing [totalCount] companies..." — use ${totalCount} as the total. Never mention the 5-row limit. Base insights ONLY on this data — never invent.`
           : `Query returned ${rowCount} rows. Sample rows:\n${previewRows}\nBase insights ONLY on this data — never invent.`;
 
       const answerRaw = await callClaude(
@@ -642,7 +643,9 @@ app.post("/api/chat", async (req, res) => {
 
     // ── Strip total_count from displayed columns ───────────
     const totalCountIdx = cols.indexOf("total_count");
+    let totalCount2 = null;
     if (totalCountIdx !== -1) {
+      totalCount2 = rows[0]?.[totalCountIdx] ?? null;
       cols = cols.filter(c => c !== "total_count");
       rows = rows.map(row => row.filter((_, i) => i !== totalCountIdx));
     }
@@ -660,19 +663,17 @@ app.post("/api/chat", async (req, res) => {
 
     if (isListingQuery && generatedSQL !== "NONE") {
       try {
-        // Extract the WHERE clause from the generated SQL to reuse the same filters
-        const upperSQL = finalSQL.replace(/\s+/g, ' ');
-        // Find the core filter by extracting from the CTE or main WHERE
-        const whereMatch = upperSQL.match(/WHERE\s+([\s\S]+?)\s*(?:ORDER BY|GROUP BY|LIMIT|$)/i);
-        const whereClause = whereMatch ? whereMatch[1].trim() : '1=1';
-
-        // Strip any rn = 1 dedup filter since we query the full table
-        const cleanWhere = whereClause.replace(/\s*AND\s*rn\s*=\s*1/gi, '').replace(/^rn\s*=\s*1\s*AND\s*/i, '').trim() || '1=1';
+        // Extract only the topic ILIKE filter from the generated SQL.
+        // The CTE pattern wraps the real filter inside the first CTE block — we pull
+        // just the "topic ILIKE '%...%'" clause to avoid grabbing CTE closing parens
+        // or rn=1 dedup conditions that break the standalone chart query.
+        const ilikeMatch = finalSQL.match(/topic\s+ILIKE\s+'[^']+'/i);
+        const cleanWhere = ilikeMatch ? ilikeMatch[0].trim() : '1=1';
 
         const chartSQL = `
           WITH base AS (
             SELECT company_id, fleet_size, companyState
-            FROM ${CONFIG.DATABRICKS_CATALOG}.${CONFIG.DATABRICKS_SCHEMA}.${CONFIG.DATABRICKS_TABLE}
+            FROM ${CONFIG.DATABRICKS_TABLE}
             WHERE ${cleanWhere}
           ),
           fleet_agg AS (
@@ -757,6 +758,7 @@ app.post("/api/chat", async (req, res) => {
       prettycols,
       rows: responseRows,
       rowCount,
+      totalCount: totalCount2,
       sql: finalSQL,
       contactsMasked,
       formAlreadyFilled: contactsUnlocked,

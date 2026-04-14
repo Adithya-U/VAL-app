@@ -531,7 +531,7 @@ function renderFleetBarChart(cid, data, PALETTE) {
   if (chartInstances[cid]) chartInstances[cid].destroy();
 
   // Sort fleet size tiers in logical order
-  const FLEET_ORDER = ['<25','25-49','50-99','100-249','250-499','500-999','1000-2499','2500+'];
+  const FLEET_ORDER = ['2500+','1000-2499','500-999','250-499','250 +','100-249','50-99','25-49','10-24','5-9','1-4'];
   const sorted = [...data].sort((a, b) => {
     const ai = FLEET_ORDER.indexOf(a.label);
     const bi = FLEET_ORDER.indexOf(b.label);
@@ -561,23 +561,13 @@ function renderFleetBarChart(cid, data, PALETTE) {
     }
   };
 
-  // Gradient colors from light to dark blue based on value
-  const maxVal = Math.max(...sorted.map(d => d.value));
-  const bgColors = sorted.map(d => {
-    const intensity = maxVal > 0 ? d.value / maxVal : 0;
-    const r = Math.round(0   + (51  - 0)   * (1 - intensity));
-    const g = Math.round(102 + (153 - 102) * (1 - intensity));
-    const b2 = Math.round(204 + (255 - 204) * (1 - intensity));
-    return `rgba(${Math.round(0 + intensity*0)},${Math.round(102 - intensity*30)},${Math.round(204 - intensity*50)},${0.55 + intensity*0.45})`;
-  });
-
   chartInstances[cid] = new Chart(ctx, {
     type: 'bar',
     data: {
       labels: sorted.map(d => d.label),
       datasets: [{
         data: sorted.map(d => d.value),
-        backgroundColor: sorted.map((_, i) => PALETTE[i % PALETTE.length]),
+        backgroundColor: '#0066CC',
         borderRadius: 5,
         borderSkipped: false
       }]
@@ -643,14 +633,24 @@ function renderUSHeatmap(containerId, stateData) {
   const vals = Object.values(lookup);
   const maxVal = vals.length ? Math.max(...vals) : 1;
 
-  // Orange (#FF6103) → Blue (#0066CC), power scale for visibility
+  // Blue (#0066CC) → bright green-white middle → Green (#00CC66), power scale for visibility
   function getColor(val) {
     if (!val) return '#e0e0e0'; // grey for zero states
     const t = Math.pow(val / maxVal, 0.55);
-    // Interpolate: #FF6103 → #0066CC
-    const r = Math.round(255 + t * (0   - 255));
-    const g = Math.round( 97 + t * (102 -  97));
-    const b = Math.round(  3 + t * (204 -   3));
+    // Two-segment interpolation: 0→0.5 = Blue→bright lime, 0.5→1 = bright lime→Green
+    // This avoids any grey/muddy midpoint by going through a vivid #80FFB3 at t=0.5
+    let r, g, b;
+    if (t <= 0.5) {
+      const s = t / 0.5;
+      r = Math.round(0   + s * (128 - 0));    // 0   → 128
+      g = Math.round(102 + s * (255 - 102));  // 102 → 255
+      b = Math.round(204 + s * (179 - 204));  // 204 → 179
+    } else {
+      const s = (t - 0.5) / 0.5;
+      r = Math.round(128 + s * (0   - 128));  // 128 → 0
+      g = Math.round(255 + s * (204 - 255));  // 255 → 204
+      b = Math.round(179 + s * (102 - 179));  // 179 → 102
+    }
     return `rgb(${r},${g},${b})`;
   }
 
@@ -681,11 +681,11 @@ function renderUSHeatmap(containerId, stateData) {
         style="width:100%;height:auto;display:block;background:#fafbfd;border-radius:8px 8px 0 0;">
       <defs>
         <linearGradient id="${gradId}" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%"   stop-color="#FF6103"/>
-          <stop offset="25%"  stop-color="#cc6b2a"/>
-          <stop offset="50%"  stop-color="#7a6888"/>
-          <stop offset="75%"  stop-color="#3366bb"/>
-          <stop offset="100%" stop-color="#0066CC"/>
+          <stop offset="0%"   stop-color="#0066CC"/>
+          <stop offset="25%"  stop-color="#00AADD"/>
+          <stop offset="50%"  stop-color="#80FFB3"/>
+          <stop offset="75%"  stop-color="#33DD88"/>
+          <stop offset="100%" stop-color="#00CC66"/>
         </linearGradient>
       </defs>
       ${paths}
@@ -702,7 +702,7 @@ function renderUSHeatmap(containerId, stateData) {
     const legendHtml = `
       <div style="padding:8px 10px 10px;background:#fafbfd;border-radius:0 0 8px 8px;border-top:1px solid #e8eef7;">
         <div style="position:relative;height:12px;border-radius:4px;overflow:hidden;
-          background:linear-gradient(to right,#FF6103,#cc6b2a,#7a6888,#3366bb,#0066CC);">
+          background:linear-gradient(to right,#0066CC,#00AADD,#80FFB3,#33DD88,#00CC66);">
         </div>
         <div style="display:flex;justify-content:space-between;margin-top:4px;">
           ${tickVals.map((v,i) => `
@@ -714,7 +714,7 @@ function renderUSHeatmap(containerId, stateData) {
             </div>`).join('')}
         </div>
         <div style="text-align:center;margin-top:1px;font-size:9px;color:#9ba8bc;font-family:Inter,sans-serif;letter-spacing:.3px;">
-          companies per state &nbsp;·&nbsp; orange = low &nbsp;·&nbsp; blue = high
+          companies per state &nbsp;·&nbsp; blue = low &nbsp;·&nbsp; green = high
         </div>
       </div>`;
 
@@ -1018,6 +1018,8 @@ async function send() {
 
     if (data.cols?.length && data.rows?.length) {
       const rc         = data.rowCount ?? data.rows.length;
+      const totalCount = data.totalCount ?? null;
+      const isListing  = totalCount !== null;
       const isContact  = data.stage === 'CONTACT';
       const hasFleet    = data.cols.some(c => c.toLowerCase() === 'fleet_size');
       const hasState    = data.cols.some(c => c.toLowerCase() === 'companystate' || c.toLowerCase() === 'company_state');
@@ -1026,6 +1028,10 @@ async function send() {
       const hasRevenue  = data.cols.some(c => c.toLowerCase() === 'company_revenue_range');
       const showChart   = !isContact && (hasFleet || hasState || hasTAMSection || hasIndustry || hasRevenue);
       const label       = isContact ? '👤 Contacts' : '🏢 Companies';
+      // For listing queries: "Top 5 of 409 results"; for others: "20 results"
+      const countLabel  = isListing && !isContact
+        ? `Top <strong style="font-size:12.5px;color:var(--navy)">${rc}</strong> of <strong style="font-size:12.5px;color:var(--navy)">${Number(totalCount).toLocaleString()}</strong> result${totalCount!==1?'s':''}`
+        : `<strong style="font-size:12.5px;color:var(--navy)">${rc}</strong> result${rc!==1?'s':''}`;
 
       // ── 2. Side-by-side: bar chart + table, then map below ──
       if (isContact) html += renderLeadGate(tblId, data.cols, data.rows, data.formAlreadyFilled);
@@ -1044,7 +1050,7 @@ async function send() {
                 <div class="sidebyside-bar" id="barchart_${chrId}"></div>
                 <div class="sidebyside-table">
                   <div class="block-hd" style="border-radius:0;border-left:1px solid var(--border);">
-                    <span class="block-label">${label} · <strong style="font-size:12.5px;color:var(--navy)">${rc}</strong> result${rc!==1?'s':''}</span>
+                    <span class="block-label">${label} · ${countLabel}</span>
                     <button class="block-toggle" onclick="toggleBlock('${tblId}',this)">hide</button>
                   </div>
                   <div class="block-body open" id="${tblId}" style="border-left:1px solid var(--border);">
@@ -1059,7 +1065,7 @@ async function send() {
         html += `
           <div class="block">
             <div class="block-hd">
-              <span class="block-label">${label} · <strong style="font-size:12.5px;color:var(--navy)">${rc}</strong> result${rc!==1?'s':''}</span>
+              <span class="block-label">${label} · ${countLabel}</span>
               <button class="block-toggle" onclick="toggleBlock('${tblId}',this)">hide</button>
             </div>
             <div class="block-body open" id="${tblId}">
@@ -1081,14 +1087,17 @@ async function send() {
       const hasFleet = data.cols.some(c => c.toLowerCase() === 'fleet_size');
       const hasState = data.cols.some(c => c.toLowerCase() === 'companystate' || c.toLowerCase() === 'company_state');
       const hasTAM = data.cols.some(c => c.toLowerCase() === 'section') && data.cols.some(c => c.toLowerCase() === 'breakdown_label');
-      const chartCols = data.chartData?.cols || data.cols;
-      const chartRows = data.chartData?.rows || data.rows;
-      const hasTAMChart  = chartCols.some(c => c.toLowerCase() === 'section') && chartCols.some(c => c.toLowerCase() === 'breakdown_label');
-      const hasIndChart  = chartCols.some(c => c.toLowerCase() === 'company_industry');
-      const hasRevChart  = chartCols.some(c => c.toLowerCase() === 'company_revenue_range');
-      const hasFleetChart= chartCols.some(c => c.toLowerCase() === 'fleet_size');
-      const hasStateChart= chartCols.some(c => c.toLowerCase() === 'companystate' || c.toLowerCase() === 'company_state');
-      if (hasInd || hasRev || hasFleet || hasState || hasTAM || hasTAMChart || hasIndChart || hasRevChart || hasFleetChart || hasStateChart) {
+      // For listing queries (totalCount present), ONLY use chartData — never fall back to the 5-row table.
+      // For TAM/aggregate queries, use the rows directly since they already contain breakdown data.
+      const isListingQuery = data.totalCount !== null && data.totalCount !== undefined;
+      const chartCols = data.chartData?.cols ?? (isListingQuery ? null : data.cols);
+      const chartRows = data.chartData?.rows ?? (isListingQuery ? null : data.rows);
+      const hasTAMChart  = chartCols?.some(c => c.toLowerCase() === 'section') && chartCols?.some(c => c.toLowerCase() === 'breakdown_label');
+      const hasIndChart  = chartCols?.some(c => c.toLowerCase() === 'company_industry');
+      const hasRevChart  = chartCols?.some(c => c.toLowerCase() === 'company_revenue_range');
+      const hasFleetChart= chartCols?.some(c => c.toLowerCase() === 'fleet_size');
+      const hasStateChart= chartCols?.some(c => c.toLowerCase() === 'companystate' || c.toLowerCase() === 'company_state');
+      if (chartCols && chartRows && (hasInd || hasRev || hasFleet || hasState || hasTAM || hasTAMChart || hasIndChart || hasRevChart || hasFleetChart || hasStateChart)) {
         requestAnimationFrame(() => {
           const rendered = renderSmartCharts(chartCols, chartRows, `barchart_${chrId}`, `mapinner_${chrId}`);
           if (!rendered) {
