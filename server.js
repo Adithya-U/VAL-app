@@ -8,7 +8,7 @@ const cors    = require("cors");
 const path    = require("path");
 const fetch   = (...args) => import("node-fetch").then(({ default: f }) => f(...args));
 const { v4: uuidv4 } = require("uuid");
-
+require('dotenv').config({ path: '.env.local' });
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
@@ -39,6 +39,7 @@ const CONFIG = {
   LOG_TABLE               : "bobit_datalake.default.bbm_demo_logs",
   LEADS_TABLE             : "bobit_datalake.default.bbm_demo_leads",
 };
+
 
 
 // ============================================================
@@ -422,6 +423,113 @@ function fixSQL(sql) {
   return sql;
 }
 
+function stripOuterLimit(sql) {
+  if (!sql) return sql;
+  return sql
+    .trim()
+    .replace(/;+\s*$/g, "")
+    .replace(/\s+LIMIT\s+\d+\s*$/i, "")
+    .trim();
+}
+
+function isSqlWordChar(ch) {
+  return !!ch && /[A-Z0-9_]/i.test(ch);
+}
+
+function findTopLevelKeyword(sql, keyword, start = 0) {
+  const upper = sql.toUpperCase();
+  const target = keyword.toUpperCase();
+  let depth = 0;
+  let quote = null;
+
+  for (let i = start; i < sql.length; i++) {
+    const ch = sql[i];
+
+    if (quote) {
+      if (ch === quote) {
+        if (quote === "'" && sql[i + 1] === "'") {
+          i++;
+        } else {
+          quote = null;
+        }
+      }
+      continue;
+    }
+
+    if (ch === "'" || ch === '"' || ch === "`") {
+      quote = ch;
+      continue;
+    }
+
+    if (ch === "(") {
+      depth++;
+      continue;
+    }
+    if (ch === ")") {
+      depth = Math.max(0, depth - 1);
+      continue;
+    }
+
+    if (
+      depth === 0 &&
+      upper.startsWith(target, i) &&
+      !isSqlWordChar(sql[i - 1]) &&
+      !isSqlWordChar(sql[i + target.length])
+    ) {
+      return i;
+    }
+  }
+
+  return -1;
+}
+
+function stripOuterOrderBy(sql) {
+  const orderIdx = findTopLevelKeyword(sql, "ORDER");
+  if (orderIdx === -1) return sql;
+
+  const afterOrder = sql.slice(orderIdx + "ORDER".length);
+  if (!/^\s+BY\b/i.test(afterOrder)) return sql;
+
+  return sql.slice(0, orderIdx).trim();
+}
+
+function buildListingChartSQL(listingSQL) {
+  const unboundedSQL = stripOuterOrderBy(stripOuterLimit(listingSQL));
+  const startsWithWith = /^\s*WITH\b/i.test(unboundedSQL);
+  const mainSelectIdx = startsWithWith ? findTopLevelKeyword(unboundedSQL, "SELECT", 4) : -1;
+
+  const fullListingCTE = startsWithWith && mainSelectIdx !== -1
+    ? `${unboundedSQL.slice(0, mainSelectIdx).trim()},
+          full_listing AS (
+            ${unboundedSQL.slice(mainSelectIdx).trim()}
+          )`
+    : `WITH full_listing AS (
+            ${unboundedSQL}
+          )`;
+
+  return `
+          ${fullListingCTE},
+          fleet_agg AS (
+            SELECT fleet_size AS breakdown_label, COUNT(*) AS company_count
+            FROM full_listing WHERE fleet_size IS NOT NULL AND fleet_size != ''
+            GROUP BY fleet_size
+          ),
+          state_agg AS (
+            SELECT companyState AS breakdown_label, COUNT(*) AS company_count
+            FROM full_listing WHERE companyState IS NOT NULL AND companyState != ''
+            GROUP BY companyState
+          )
+          SELECT 'fleet' AS section, breakdown_label, company_count,
+                 ROUND(company_count * 100.0 / SUM(company_count) OVER (PARTITION BY 'fleet'), 1) AS pct_of_total
+          FROM fleet_agg
+          UNION ALL
+          SELECT 'state' AS section, breakdown_label, company_count,
+                 ROUND(company_count * 100.0 / SUM(company_count) OVER (PARTITION BY 'state'), 1) AS pct_of_total
+          FROM state_agg
+          ORDER BY section, company_count DESC
+        `;
+}
+
 // ============================================================
 //  SECTION 6 — RATE LIMITING
 // ============================================================
@@ -643,8 +751,9 @@ app.post("/api/chat", async (req, res) => {
 
     // ── Strip total_count from displayed columns ───────────
     const totalCountIdx = cols.indexOf("total_count");
+    const hadTotalCount = totalCountIdx !== -1;
     let totalCount2 = null;
-    if (totalCountIdx !== -1) {
+    if (hadTotalCount) {
       totalCount2 = rows[0]?.[totalCountIdx] ?? null;
       cols = cols.filter(c => c !== "total_count");
       rows = rows.map(row => row.filter((_, i) => i !== totalCountIdx));
@@ -658,43 +767,14 @@ app.post("/api/chat", async (req, res) => {
     // For any non-TAM, non-contact listing that has fleet_size or companyState,
     // run a second aggregate query so charts reflect the full dataset (not just the page).
     let chartData = null;
-    const isListingQuery = !isContact && cols.some(c => c.toLowerCase() === 'fleet_size' || c.toLowerCase() === 'companystate') &&
+    const isListingQuery = hadTotalCount && !isContact && cols.some(c => c.toLowerCase() === 'fleet_size' || c.toLowerCase() === 'companystate') &&
       !cols.some(c => c.toLowerCase() === 'section');
 
     if (isListingQuery && generatedSQL !== "NONE") {
       try {
-        // Extract only the topic ILIKE filter from the generated SQL.
-        // The CTE pattern wraps the real filter inside the first CTE block — we pull
-        // just the "topic ILIKE '%...%'" clause to avoid grabbing CTE closing parens
-        // or rn=1 dedup conditions that break the standalone chart query.
-        const ilikeMatch = finalSQL.match(/topic\s+ILIKE\s+'[^']+'/i);
-        const cleanWhere = ilikeMatch ? ilikeMatch[0].trim() : '1=1';
-
-        const chartSQL = `
-          WITH base AS (
-            SELECT company_id, fleet_size, companyState
-            FROM ${CONFIG.DATABRICKS_TABLE}
-            WHERE ${cleanWhere}
-          ),
-          fleet_agg AS (
-            SELECT fleet_size AS breakdown_label, COUNT(DISTINCT company_id) AS company_count
-            FROM base WHERE fleet_size IS NOT NULL AND fleet_size != ''
-            GROUP BY fleet_size
-          ),
-          state_agg AS (
-            SELECT companyState AS breakdown_label, COUNT(DISTINCT company_id) AS company_count
-            FROM base WHERE companyState IS NOT NULL AND companyState != ''
-            GROUP BY companyState
-          )
-          SELECT 'fleet' AS section, breakdown_label, company_count,
-                 ROUND(company_count * 100.0 / SUM(company_count) OVER (PARTITION BY 'fleet'), 1) AS pct_of_total
-          FROM fleet_agg
-          UNION ALL
-          SELECT 'state' AS section, breakdown_label, company_count,
-                 ROUND(company_count * 100.0 / SUM(company_count) OVER (PARTITION BY 'state'), 1) AS pct_of_total
-          FROM state_agg
-          ORDER BY section, company_count DESC
-        `;
+        // Reuse the main listing SQL without its page limit so charts reflect
+        // the same filtered and deduped company universe as the table.
+        const chartSQL = buildListingChartSQL(finalSQL);
 
         if (isSafeSql(chartSQL)) {
           const chartResult = await databricksQuery(chartSQL);
