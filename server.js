@@ -141,10 +141,32 @@ SQL RULES:
 - Never use company_revenue in SELECT. Use company_revenue_range (string) for display. Only use company_revenue (numeric) for ORDER BY or comparisons.
 - Only write SELECT or WITH queries. Never INSERT, UPDATE, DELETE, DROP, ALTER, CREATE, TRUNCATE. Freely use window functions and CTEs if needed.
 - topic MAY ONLY be used in WHERE with ILIKE and wildcards. Never use '=' for topic. Never SELECT or GROUP BY topic — filtering only.
-- topic filtering MUST use ONLY these exact values: 'Asset Tracking', 'Commercial Pest Control', 'Fleet Fuel Cards', 'GPS', 'Ground Transportation', 'HVAC (Heating, Ventilation, & Air Conditioning)', 'Route Optimization', 'Telematics', 'Temperature Controlled Shipping', 'Transport & Freight Trucks'.
-- Map user input to the closest valid topic. Example: "fleet fuel cards" → 'Fleet Fuel Cards', "hvac" → 'HVAC (Heating, Ventilation, & Air Conditioning)'.
-- If a user mentions a topic that closely matches a valid topic, ALWAYS map it instead of rejecting the query.
-- Do NOT invent new topics outside this list.
+- topic filtering MUST use ONLY these exact valid topic values:
+  'Asset Tracking', 'Commercial Pest Control', 'Fleet Fuel Cards', 'GPS', 'Ground Transportation', 'HVAC (Heating, Ventilation, & Air Conditioning)', 'Route Optimization', 'Telematics', 'Temperature Controlled Shipping', 'Transport & Freight Trucks'.
+
+TOPIC MAPPING RULES:
+- Map user product/service language to the closest valid topic before writing SQL.
+- If a user mentions a topic that closely matches a valid topic or alias, ALWAYS map it instead of rejecting the query.
+- Do NOT invent new topic values outside the valid topic list.
+- To add future mappings, add user-facing synonyms under exactly one valid topic in TOPIC ALIAS MAP.
+- If the user mentions multiple valid topics or aliases, choose the topic that is most dominant in the user's phrase and intent. If the wording is ambiguous, prefer the product/service named most specifically.
+- SQL must always filter by the mapped valid topic value, never by the user-facing alias. Example: "dashcams" maps to WHERE topic ILIKE '%Telematics%', not WHERE topic ILIKE '%Dashcams%'.
+
+TOPIC ALIAS MAP:
+- 'Asset Tracking': tracking, asset tracking, trailer tracking, equipment tracking, asset monitoring
+- 'Commercial Pest Control': commercial pest control, pest control
+- 'Fleet Fuel Cards': fleet fuel cards, fuel cards, fleet fuel, fuel payment cards
+- 'GPS': GPS, GPS tracking, location tracking, navigation
+- 'Ground Transportation': ground transportation, logistics products, logistics solutions, transportation services
+- 'HVAC (Heating, Ventilation, & Air Conditioning)': HVAC, heating, ventilation, air conditioning
+- 'Route Optimization': route optimization, routing, route planning, dispatch routing
+- 'Telematics': telematics, video telematics, dashcam, dashcams, dash camera, dash cameras, dashboard camera, dashboard cameras, fleet camera, fleet cameras, in-cab camera, in-cab cameras, driver camera, driver cameras, vehicle camera, vehicle cameras, road-facing camera, driver-facing camera, camera system, camera systems, fleet video, vehicle video
+- 'Temperature Controlled Shipping': temperature controlled shipping, refrigerated shipping, reefer, cold chain
+- 'Transport & Freight Trucks': freight trucks, transport trucks, trucking equipment, freight equipment
+
+ANSWER DISPLAY LABELS FOR TOPIC ALIASES:
+- For dashcam/camera/video aliases mapped to 'Telematics', describe the topic in user-facing answers as "dashcam related telematics".
+- For other aliases, use the mapped valid topic unless the user's original phrase is clearer and still tied to the valid topic.
 - companyState uses full names ('California', not 'CA').
 - Never SELECT a column that will obviously be all zeros or nulls.
 
@@ -235,15 +257,9 @@ TYPE 2 — "TAM of companies looking for [product/service]" (e.g. "TAM of compan
   KEY SIGNAL: The user says "looking for", "interested in", "researching", "buying", "need" + a product or service.
   They want to know which companies have BUYING INTENT for a product — use the topic signal column.
   → Filter by: WHERE topic ILIKE '%<mapped_topic>%'   ← use topic, NEVER company_industry for the intent filter
-  → Map the user's product words to the closest valid topic value:
-      "logistics products" / "logistics solutions" / "freight" → 'Ground Transportation' OR 'Transport & Freight Trucks'
-      "tracking" / "asset tracking" → 'Asset Tracking'
-      "GPS" → 'GPS'
-      "telematics" → 'Telematics'
-      "fuel cards" / "fleet fuel" → 'Fleet Fuel Cards'
-      "route optimization" / "routing" → 'Route Optimization'
-      "temperature" / "cold chain" → 'Temperature Controlled Shipping'
-      "HVAC" / "heating" / "ventilation" → 'HVAC (Heating, Ventilation, & Air Conditioning)'
+  → Map the user's product words to the closest valid topic value using TOPIC ALIAS MAP.
+  → Dashcam, fleet camera, in-cab camera, driver camera, vehicle camera, and video telematics phrases map to 'Telematics'.
+  → If the user mentions more than one mapped product, choose the dominant topic from the user's wording and intent.
   → ALWAYS return BOTH a fleet size breakdown AND a state breakdown using UNION ALL.
   → Column names MUST be: section, breakdown_label, company_count, pct_of_total
   REQUIRED PATTERN for TYPE 2 (mandatory — no exceptions):
@@ -314,7 +330,7 @@ const ANSWER_PROMPT_SUFFIX = `
 RESPONSE STRUCTURE — write only these two XML tags based on the real data provided:
 
 <answer>
-One single direct sentence acknowledging the question and stating the key finding or number. For company listings, say "Showing [total_count] companies actively researching [topic]." followed by any location/filter context if applicable — use the actual total_count value from the data. Never say "top 5 of" or mention the row limit. No bullet points, no sub-sections, no markdown tables, no pipes or dashes. Just one clean sentence.
+One single direct sentence acknowledging the question and stating the key finding or number. For company listings, say "Showing [total_count] companies actively researching [display_topic]." followed by any location/filter context if applicable — use the actual total_count value from the data. Use ANSWER DISPLAY LABELS FOR TOPIC ALIASES from the system prompt: for dashcam/camera/video aliases mapped to 'Telematics', [display_topic] is "dashcam related telematics"; otherwise use the mapped valid topic. Never say "top 5 of" or mention the row limit. No bullet points, no sub-sections, no markdown tables, no pipes or dashes. Just one clean sentence.
 </answer>
 <insights>
 Exactly 2 to 3 tight bullet points (use "- " prefix) surfacing real patterns from the data: dominant state or region, industry concentration, fleet size skew, gov vs private split, top titles, notable companies, TAM totals, etc. Make these genuinely useful observations, not restatements of column names. Base ONLY on actual data returned — never invent. If data is empty or conversational, output: NONE
