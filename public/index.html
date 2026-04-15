@@ -1002,7 +1002,12 @@ async function send() {
     // Helper to build table
     function buildTable(cols, prettycols, rows) {
       const skipCols = new Set(['company_id','contact_id','signal_score','signal_date','rn']);
-      const indices = cols.map((c,i) => skipCols.has(c.toLowerCase()) ? -1 : i).filter(i => i !== -1);
+      const lowerCols = cols.map(c => c.toLowerCase());
+      const hasCompanyRows = lowerCols.includes('company_name') && !lowerCols.some(c => c.startsWith('contact_'));
+      const companyDisplayOrder = ['company_name', 'company_industry', 'fleet_size', 'companycity', 'companystate'];
+      const indices = hasCompanyRows
+        ? companyDisplayOrder.map(c => lowerCols.indexOf(c)).filter(i => i !== -1)
+        : cols.map((c,i) => skipCols.has(c.toLowerCase()) ? -1 : i).filter(i => i !== -1);
       const displayCols = prettycols || cols;
       const th = indices.map(i => `<th>${esc(displayCols[i] || cols[i])}</th>`).join('');
       const tb = (rows||[]).map(r => '<tr>' + indices.map(i => {
