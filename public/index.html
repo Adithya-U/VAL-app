@@ -999,15 +999,28 @@ async function send() {
 
     const prettycols = data.prettycols || data.cols;
 
-    // Helper to build table
-    function buildTable(cols, prettycols, rows) {
+    function getTableDisplayIndices(cols) {
       const skipCols = new Set(['company_id','contact_id','signal_score','signal_date','rn']);
       const lowerCols = cols.map(c => c.toLowerCase());
       const hasCompanyRows = lowerCols.includes('company_name') && !lowerCols.some(c => c.startsWith('contact_'));
       const companyDisplayOrder = ['company_name', 'company_industry', 'fleet_size', 'companycity', 'companystate'];
-      const indices = hasCompanyRows
+      return hasCompanyRows
         ? companyDisplayOrder.map(c => lowerCols.indexOf(c)).filter(i => i !== -1)
         : cols.map((c,i) => skipCols.has(c.toLowerCase()) ? -1 : i).filter(i => i !== -1);
+    }
+
+    function isBlankDisplayValue(val) {
+      return val == null || (typeof val === 'string' && val.trim() === '');
+    }
+
+    function isCompanyListingTable(cols, isListing, isContact) {
+      const lowerCols = cols.map(c => c.toLowerCase());
+      return isListing && !isContact && lowerCols.includes('company_name') && !lowerCols.some(c => c.startsWith('contact_'));
+    }
+
+    // Helper to build table
+    function buildTable(cols, prettycols, rows) {
+      const indices = getTableDisplayIndices(cols);
       const displayCols = prettycols || cols;
       const th = indices.map(i => `<th>${esc(displayCols[i] || cols[i])}</th>`).join('');
       const tb = (rows||[]).map(r => '<tr>' + indices.map(i => {
@@ -1026,6 +1039,12 @@ async function send() {
       const totalCount = data.totalCount ?? null;
       const isListing  = totalCount !== null;
       const isContact  = data.stage === 'CONTACT';
+      const displayIndices = getTableDisplayIndices(data.cols);
+      const shouldFilterCompanyRows = isCompanyListingTable(data.cols, isListing, isContact);
+      const visibleRows = shouldFilterCompanyRows
+        ? data.rows.filter(r => displayIndices.every(i => !isBlankDisplayValue(r[i])))
+        : data.rows;
+      const visibleRc  = shouldFilterCompanyRows ? visibleRows.length : rc;
       const hasFleet    = data.cols.some(c => c.toLowerCase() === 'fleet_size');
       const hasState    = data.cols.some(c => c.toLowerCase() === 'companystate' || c.toLowerCase() === 'company_state');
       const hasTAMSection = data.cols.some(c => c.toLowerCase() === 'section') && data.cols.some(c => c.toLowerCase() === 'breakdown_label');
@@ -1033,10 +1052,12 @@ async function send() {
       const hasRevenue  = data.cols.some(c => c.toLowerCase() === 'company_revenue_range');
       const showChart   = !isContact && (hasFleet || hasState || hasTAMSection || hasIndustry || hasRevenue);
       const label       = isContact ? '👤 Contacts' : '🏢 Companies';
-      // For listing queries: "Top 5 of 409 results"; for others: "20 results"
-      const countLabel  = isListing && !isContact
-        ? `Top <strong style="font-size:12.5px;color:var(--navy)">${rc}</strong> of <strong style="font-size:12.5px;color:var(--navy)">${Number(totalCount).toLocaleString()}</strong> result${totalCount!==1?'s':''}`
-        : `<strong style="font-size:12.5px;color:var(--navy)">${rc}</strong> result${rc!==1?'s':''}`;
+      // Company listings may hide incomplete visible rows, so their label uses the filtered table count.
+      const countLabel  = shouldFilterCompanyRows
+        ? `<strong style="font-size:12.5px;color:var(--navy)">${visibleRc}</strong> result${visibleRc!==1?'s':''}`
+        : isListing && !isContact
+          ? `Top <strong style="font-size:12.5px;color:var(--navy)">${visibleRc}</strong> of <strong style="font-size:12.5px;color:var(--navy)">${Number(totalCount).toLocaleString()}</strong> result${totalCount!==1?'s':''}`
+          : `<strong style="font-size:12.5px;color:var(--navy)">${visibleRc}</strong> result${visibleRc!==1?'s':''}`;
 
       // ── 2. Side-by-side: bar chart + table, then map below ──
       if (isContact) html += renderLeadGate(tblId, data.cols, data.rows, data.formAlreadyFilled);
@@ -1059,7 +1080,7 @@ async function send() {
                     <button class="block-toggle" onclick="toggleBlock('${tblId}',this)">hide</button>
                   </div>
                   <div class="block-body open" id="${tblId}" style="border-left:1px solid var(--border);">
-                    <div class="tbl-wrap" id="tw_${tblId}">${buildTable(data.cols, prettycols, data.rows)}</div>
+                    <div class="tbl-wrap" id="tw_${tblId}">${buildTable(data.cols, prettycols, visibleRows)}</div>
                   </div>
                 </div>
               </div>
@@ -1074,7 +1095,7 @@ async function send() {
               <button class="block-toggle" onclick="toggleBlock('${tblId}',this)">hide</button>
             </div>
             <div class="block-body open" id="${tblId}">
-              <div class="tbl-wrap" id="tw_${tblId}">${buildTable(data.cols, prettycols, data.rows)}</div>
+              <div class="tbl-wrap" id="tw_${tblId}">${buildTable(data.cols, prettycols, visibleRows)}</div>
             </div>
           </div>`;
       }
