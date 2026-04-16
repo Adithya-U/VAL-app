@@ -546,6 +546,29 @@ function buildListingChartSQL(listingSQL) {
         `;
 }
 
+function buildSummaryRowsSQL(listingSQL) {
+  const unboundedSQL = stripOuterOrderBy(stripOuterLimit(listingSQL));
+  const startsWithWith = /^\s*WITH\b/i.test(unboundedSQL);
+  const mainSelectIdx = startsWithWith ? findTopLevelKeyword(unboundedSQL, "SELECT", 4) : -1;
+
+  const fullListingCTE = startsWithWith && mainSelectIdx !== -1
+    ? `${unboundedSQL.slice(0, mainSelectIdx).trim()},
+          full_listing AS (
+            ${unboundedSQL.slice(mainSelectIdx).trim()}
+          )`
+    : `WITH full_listing AS (
+            ${unboundedSQL}
+          )`;
+
+  return `
+    ${fullListingCTE}
+    SELECT company_name, companyState, fleet_size, companycity, company_industry, company_website, company_revenue_range
+    FROM full_listing
+    WHERE company_name IS NOT NULL AND company_name != ''
+    LIMIT 2000
+  `;
+}
+
 // ============================================================
 //  SECTION 6 — RATE LIMITING
 // ============================================================
@@ -783,22 +806,24 @@ app.post("/api/chat", async (req, res) => {
     // For any non-TAM, non-contact listing that has fleet_size or companyState,
     // run a second aggregate query so charts reflect the full dataset (not just the page).
     let chartData = null;
+    let companySummaryRows = null;
     const isListingQuery = hadTotalCount && !isContact && cols.some(c => c.toLowerCase() === 'fleet_size' || c.toLowerCase() === 'companystate') &&
       !cols.some(c => c.toLowerCase() === 'section');
 
     if (isListingQuery && generatedSQL !== "NONE") {
       try {
-        // Reuse the main listing SQL without its page limit so charts reflect
-        // the same filtered and deduped company universe as the table.
-        const chartSQL = buildListingChartSQL(finalSQL);
+        const chartSQL   = buildListingChartSQL(finalSQL);
+        const summarySQL = buildSummaryRowsSQL(finalSQL);
 
-        if (isSafeSql(chartSQL)) {
-          const chartResult = await databricksQuery(chartSQL);
-          const parsed = parseResult(chartResult);
-          if (parsed.rows.length > 0) chartData = parsed;
-        }
+        const [chartResult, summaryResult] = await Promise.all([
+          databricksQuery(chartSQL),
+          databricksQuery(summarySQL),
+        ]);
+
+        if (chartResult)   { const p = parseResult(chartResult);   if (p.rows.length > 0) chartData          = p; }
+        if (summaryResult) { const p = parseResult(summaryResult); if (p.rows.length > 0) companySummaryRows = p; }
       } catch (e) {
-        console.warn("[CHART AGG FAILED]", e.message.slice(0, 200));
+        console.warn("[CHART/SUMMARY AGG FAILED]", e.message.slice(0, 200));
         // Non-fatal — frontend will fall back to tallying raw rows
       }
     }
@@ -860,6 +885,7 @@ app.post("/api/chat", async (req, res) => {
       formAlreadyFilled: contactsUnlocked,
       requiresLead,
       chartData,
+      companySummaryRows,
       _rollingContext: contextNote,   // client echoes this back in chatHistory
     });
 
