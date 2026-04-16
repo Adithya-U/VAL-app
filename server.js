@@ -8,7 +8,7 @@ const cors    = require("cors");
 const path    = require("path");
 const fetch   = (...args) => import("node-fetch").then(({ default: f }) => f(...args));
 const { v4: uuidv4 } = require("uuid");
-
+require('dotenv').config({ path: '.env.local' });
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
@@ -141,17 +141,40 @@ SQL RULES:
 - Never use company_revenue in SELECT. Use company_revenue_range (string) for display. Only use company_revenue (numeric) for ORDER BY or comparisons.
 - Only write SELECT or WITH queries. Never INSERT, UPDATE, DELETE, DROP, ALTER, CREATE, TRUNCATE. Freely use window functions and CTEs if needed.
 - topic MAY ONLY be used in WHERE with ILIKE and wildcards. Never use '=' for topic. Never SELECT or GROUP BY topic — filtering only.
-- topic filtering MUST use ONLY these exact values: 'Asset Tracking', 'Commercial Pest Control', 'Fleet Fuel Cards', 'GPS', 'Ground Transportation', 'HVAC (Heating, Ventilation, & Air Conditioning)', 'Route Optimization', 'Telematics', 'Temperature Controlled Shipping', 'Transport & Freight Trucks'.
-- Map user input to the closest valid topic. Example: "fleet fuel cards" → 'Fleet Fuel Cards', "hvac" → 'HVAC (Heating, Ventilation, & Air Conditioning)'.
-- If a user mentions a topic that closely matches a valid topic, ALWAYS map it instead of rejecting the query.
-- Do NOT invent new topics outside this list.
+- topic filtering MUST use ONLY these exact valid topic values:
+  'Asset Tracking', 'Commercial Pest Control', 'Fleet Fuel Cards', 'GPS', 'Ground Transportation', 'HVAC (Heating, Ventilation, & Air Conditioning)', 'Route Optimization', 'Telematics', 'Temperature Controlled Shipping', 'Transport & Freight Trucks'.
+
+TOPIC MAPPING RULES:
+- Map user product/service language to the closest valid topic before writing SQL.
+- If a user mentions a topic that closely matches a valid topic or alias, ALWAYS map it instead of rejecting the query.
+- Do NOT invent new topic values outside the valid topic list.
+- To add future mappings, add user-facing synonyms under exactly one valid topic in TOPIC ALIAS MAP.
+- If the user mentions multiple valid topics or aliases, choose the topic that is most dominant in the user's phrase and intent. If the wording is ambiguous, prefer the product/service named most specifically.
+- SQL must always filter by the mapped valid topic value, never by the user-facing alias. Example: "dashcams" maps to WHERE topic ILIKE '%Telematics%', not WHERE topic ILIKE '%Dashcams%'.
+
+TOPIC ALIAS MAP:
+- 'Asset Tracking': tracking, asset tracking, trailer tracking, equipment tracking, asset monitoring
+- 'Commercial Pest Control': commercial pest control, pest control
+- 'Fleet Fuel Cards': fleet fuel cards, fuel cards, fleet fuel, fuel payment cards
+- 'GPS': GPS, GPS tracking, location tracking, navigation
+- 'Ground Transportation': ground transportation, logistics products, logistics solutions, transportation services
+- 'HVAC (Heating, Ventilation, & Air Conditioning)': HVAC, heating, ventilation, air conditioning
+- 'Route Optimization': route optimization, routing, route planning, dispatch routing
+- 'Telematics': telematics, video telematics, dashcam, dashcams, dash camera, dash cameras, dashboard camera, dashboard cameras, fleet camera, fleet cameras, in-cab camera, in-cab cameras, driver camera, driver cameras, vehicle camera, vehicle cameras, road-facing camera, driver-facing camera, camera system, camera systems, fleet video, vehicle video
+- 'Temperature Controlled Shipping': temperature controlled shipping, refrigerated shipping, reefer, cold chain
+- 'Transport & Freight Trucks': freight trucks, transport trucks, trucking equipment, freight equipment
+
+ANSWER DISPLAY LABELS FOR TOPIC ALIASES:
+- For dashcam/camera/video aliases mapped to 'Telematics', describe the topic in user-facing answers as "dashcam related telematics".
+- For other aliases, use the mapped valid topic unless the user's original phrase is clearer and still tied to the valid topic.
 - companyState uses full names ('California', not 'CA').
 - Never SELECT a column that will obviously be all zeros or nulls.
 
 LIMIT RULES (critical — read carefully):
-- If the user explicitly asks for a specific number (e.g. "top 5", "give me 10", "show 20") → use that exact number as the LIMIT , max 200.
-- If the user says "show more", "give me more", "expand", "all", "full list", or a follow-up requesting more after a previous result → use LIMIT 200.
-- If the user does NOT specify any number → default to LIMIT 20.
+- COMPANY LISTING QUERIES always use LIMIT 5. No exceptions. The charts reflect the full dataset via total_count and a separate aggregation — the table always shows exactly 5 rows.
+- If the user explicitly asks for a specific number for a NON-LISTING query (e.g. "top 5", "give me 10", "show 20") → use that exact number as the LIMIT, max 200.
+- If the user says "show more", "give me more", "expand", "all", "full list" → use LIMIT 200 for non-listing queries.
+- If the user does NOT specify any number for a non-listing query → default to LIMIT 20.
 - No other LIMIT values are permitted. Never exceed LIMIT 200.
 
 COMPANY LISTING QUERIES — always use this exact CTE pattern (no exceptions, no SELECT DISTINCT):
@@ -166,14 +189,15 @@ SELECT
   fleet_size, company_revenue_range, company_industry,
   (SELECT COUNT(*) FROM deduped) AS total_count
 FROM deduped
-ORDER BY signal_score DESC
+ORDER BY CASE fleet_size WHEN '2500+' THEN 1 WHEN '1000-2499' THEN 2 WHEN '500-999' THEN 3 WHEN '250-499' THEN 4 WHEN '250 +' THEN 4 WHEN '100-249' THEN 5 WHEN '50-99' THEN 6 WHEN '25-49' THEN 7 WHEN '10-24' THEN 8 WHEN '5-9' THEN 9 WHEN '1-4' THEN 10 ELSE 11 END ASC
 LIMIT 5
 
 - Always include fleet_size and companyState in company listing queries so charts can be rendered.
 - The scalar subquery (SELECT COUNT(*) FROM deduped) gives the true total without CROSS JOIN or row inflation.
 - total_count will appear in every row — the frontend reads it from row[0] automatically.
 - Never use SELECT DISTINCT as a deduplication method for company queries.
-- Always ORDER BY signal_score DESC for company listings.
+- Always ORDER BY fleet size descending for company listings, using this exact CASE expression:
+  ORDER BY CASE fleet_size WHEN '2500+' THEN 1 WHEN '1000-2499' THEN 2 WHEN '500-999' THEN 3 WHEN '250-499' THEN 4 WHEN '250 +' THEN 4 WHEN '100-249' THEN 5 WHEN '50-99' THEN 6 WHEN '25-49' THEN 7 WHEN '10-24' THEN 8 WHEN '5-9' THEN 9 WHEN '1-4' THEN 10 ELSE 11 END ASC
 
 COUNT/AGGREGATE QUERIES — when asked for a count or market breakdown:
 - Do NOT return a single number row. Return a breakdown table using GROUP BY.
@@ -188,9 +212,9 @@ CONTACT QUERIES:
 - Do NOT use DISTINCT company_id for contact queries.
 
 RANKING:
-- Use signal_score and signal_date to rank but NEVER SELECT or display them.
-- When the query involves ranking or "top" results, always use signal_score to prioritize.
-- Always ORDER BY the primary metric: COUNT DESC for aggregates, signal_score DESC for company listings.
+- Use signal_score and signal_date to deduplicate but NEVER SELECT or display them.
+- When the query involves ranking or "top" results, always use signal_score for the ROW_NUMBER() deduplication ONLY.
+- Always ORDER BY the primary metric: COUNT DESC for aggregates, fleet_size CASE expression (largest first) for company listings.
 
 TAM — TOTAL ADDRESSABLE MARKET QUERIES:
 There are TWO distinct TAM question types — you MUST correctly identify which one the user is asking before writing SQL.
@@ -233,15 +257,9 @@ TYPE 2 — "TAM of companies looking for [product/service]" (e.g. "TAM of compan
   KEY SIGNAL: The user says "looking for", "interested in", "researching", "buying", "need" + a product or service.
   They want to know which companies have BUYING INTENT for a product — use the topic signal column.
   → Filter by: WHERE topic ILIKE '%<mapped_topic>%'   ← use topic, NEVER company_industry for the intent filter
-  → Map the user's product words to the closest valid topic value:
-      "logistics products" / "logistics solutions" / "freight" → 'Ground Transportation' OR 'Transport & Freight Trucks'
-      "tracking" / "asset tracking" → 'Asset Tracking'
-      "GPS" → 'GPS'
-      "telematics" → 'Telematics'
-      "fuel cards" / "fleet fuel" → 'Fleet Fuel Cards'
-      "route optimization" / "routing" → 'Route Optimization'
-      "temperature" / "cold chain" → 'Temperature Controlled Shipping'
-      "HVAC" / "heating" / "ventilation" → 'HVAC (Heating, Ventilation, & Air Conditioning)'
+  → Map the user's product words to the closest valid topic value using TOPIC ALIAS MAP.
+  → Dashcam, fleet camera, in-cab camera, driver camera, vehicle camera, and video telematics phrases map to 'Telematics'.
+  → If the user mentions more than one mapped product, choose the dominant topic from the user's wording and intent.
   → ALWAYS return BOTH a fleet size breakdown AND a state breakdown using UNION ALL.
   → Column names MUST be: section, breakdown_label, company_count, pct_of_total
   REQUIRED PATTERN for TYPE 2 (mandatory — no exceptions):
@@ -312,7 +330,7 @@ const ANSWER_PROMPT_SUFFIX = `
 RESPONSE STRUCTURE — write only these two XML tags based on the real data provided:
 
 <answer>
-One single direct sentence acknowledging the question and stating the key finding or number. For company listings, say "Showing the top [N] of [total_count] companies actively researching [topic]." — use the actual total_count value from the data. No bullet points, no sub-sections, no markdown tables, no pipes or dashes. Just one clean sentence.
+One single direct sentence acknowledging the question and stating the key finding or number. For company listings, say "Showing [total_count] companies actively researching [display_topic]." followed by any location/filter context if applicable — use the actual total_count value from the data. Use ANSWER DISPLAY LABELS FOR TOPIC ALIASES from the system prompt: for dashcam/camera/video aliases mapped to 'Telematics', [display_topic] is "dashcam related telematics"; otherwise use the mapped valid topic. Never say "top 5 of" or mention the row limit. No bullet points, no sub-sections, no markdown tables, no pipes or dashes. Just one clean sentence.
 </answer>
 <insights>
 Exactly 2 to 3 tight bullet points (use "- " prefix) surfacing real patterns from the data: dominant state or region, industry concentration, fleet size skew, gov vs private split, top titles, notable companies, TAM totals, etc. Make these genuinely useful observations, not restatements of column names. Base ONLY on actual data returned — never invent. If data is empty or conversational, output: NONE
@@ -419,6 +437,136 @@ function fixSQL(sql) {
   });
 
   return sql;
+}
+
+function stripOuterLimit(sql) {
+  if (!sql) return sql;
+  return sql
+    .trim()
+    .replace(/;+\s*$/g, "")
+    .replace(/\s+LIMIT\s+\d+\s*$/i, "")
+    .trim();
+}
+
+function isSqlWordChar(ch) {
+  return !!ch && /[A-Z0-9_]/i.test(ch);
+}
+
+function findTopLevelKeyword(sql, keyword, start = 0) {
+  const upper = sql.toUpperCase();
+  const target = keyword.toUpperCase();
+  let depth = 0;
+  let quote = null;
+
+  for (let i = start; i < sql.length; i++) {
+    const ch = sql[i];
+
+    if (quote) {
+      if (ch === quote) {
+        if (quote === "'" && sql[i + 1] === "'") {
+          i++;
+        } else {
+          quote = null;
+        }
+      }
+      continue;
+    }
+
+    if (ch === "'" || ch === '"' || ch === "`") {
+      quote = ch;
+      continue;
+    }
+
+    if (ch === "(") {
+      depth++;
+      continue;
+    }
+    if (ch === ")") {
+      depth = Math.max(0, depth - 1);
+      continue;
+    }
+
+    if (
+      depth === 0 &&
+      upper.startsWith(target, i) &&
+      !isSqlWordChar(sql[i - 1]) &&
+      !isSqlWordChar(sql[i + target.length])
+    ) {
+      return i;
+    }
+  }
+
+  return -1;
+}
+
+function stripOuterOrderBy(sql) {
+  const orderIdx = findTopLevelKeyword(sql, "ORDER");
+  if (orderIdx === -1) return sql;
+
+  const afterOrder = sql.slice(orderIdx + "ORDER".length);
+  if (!/^\s+BY\b/i.test(afterOrder)) return sql;
+
+  return sql.slice(0, orderIdx).trim();
+}
+
+function buildListingChartSQL(listingSQL) {
+  const unboundedSQL = stripOuterOrderBy(stripOuterLimit(listingSQL));
+  const startsWithWith = /^\s*WITH\b/i.test(unboundedSQL);
+  const mainSelectIdx = startsWithWith ? findTopLevelKeyword(unboundedSQL, "SELECT", 4) : -1;
+
+  const fullListingCTE = startsWithWith && mainSelectIdx !== -1
+    ? `${unboundedSQL.slice(0, mainSelectIdx).trim()},
+          full_listing AS (
+            ${unboundedSQL.slice(mainSelectIdx).trim()}
+          )`
+    : `WITH full_listing AS (
+            ${unboundedSQL}
+          )`;
+
+  return `
+          ${fullListingCTE},
+          fleet_agg AS (
+            SELECT fleet_size AS breakdown_label, COUNT(*) AS company_count
+            FROM full_listing WHERE fleet_size IS NOT NULL AND fleet_size != ''
+            GROUP BY fleet_size
+          ),
+          state_agg AS (
+            SELECT companyState AS breakdown_label, COUNT(*) AS company_count
+            FROM full_listing WHERE companyState IS NOT NULL AND companyState != ''
+            GROUP BY companyState
+          )
+          SELECT 'fleet' AS section, breakdown_label, company_count,
+                 ROUND(company_count * 100.0 / SUM(company_count) OVER (PARTITION BY 'fleet'), 1) AS pct_of_total
+          FROM fleet_agg
+          UNION ALL
+          SELECT 'state' AS section, breakdown_label, company_count,
+                 ROUND(company_count * 100.0 / SUM(company_count) OVER (PARTITION BY 'state'), 1) AS pct_of_total
+          FROM state_agg
+          ORDER BY section, company_count DESC
+        `;
+}
+
+function buildSummaryRowsSQL(listingSQL) {
+  const unboundedSQL = stripOuterOrderBy(stripOuterLimit(listingSQL));
+  const startsWithWith = /^\s*WITH\b/i.test(unboundedSQL);
+  const mainSelectIdx = startsWithWith ? findTopLevelKeyword(unboundedSQL, "SELECT", 4) : -1;
+
+  const fullListingCTE = startsWithWith && mainSelectIdx !== -1
+    ? `${unboundedSQL.slice(0, mainSelectIdx).trim()},
+          full_listing AS (
+            ${unboundedSQL.slice(mainSelectIdx).trim()}
+          )`
+    : `WITH full_listing AS (
+            ${unboundedSQL}
+          )`;
+
+  return `
+    ${fullListingCTE}
+    SELECT company_name, companyState, fleet_size, companycity, company_industry, company_website, company_revenue_range
+    FROM full_listing
+    WHERE company_name IS NOT NULL AND company_name != ''
+    LIMIT 2000
+  `;
 }
 
 // ============================================================
@@ -619,7 +767,7 @@ app.post("/api/chat", async (req, res) => {
       const dataContext = rows.length === 0
         ? `The query returned 0 rows. Let the user know no data matched their filters.`
         : isListing
-          ? `Total unique companies in dataset: ${totalCount}. Showing top ${rowCount}. Sample rows:\n${previewRows}\nUse ${totalCount} as the total count in your answer. Base insights ONLY on this data — never invent.`
+          ? `Total unique companies in dataset: ${totalCount}. Showing top ${rowCount} rows in the table. Sample rows:\n${previewRows}\nIn your answer, say "Showing [totalCount] companies..." — use ${totalCount} as the total. Never mention the 5-row limit. Base insights ONLY on this data — never invent.`
           : `Query returned ${rowCount} rows. Sample rows:\n${previewRows}\nBase insights ONLY on this data — never invent.`;
 
       const answerRaw = await callClaude(
@@ -642,7 +790,10 @@ app.post("/api/chat", async (req, res) => {
 
     // ── Strip total_count from displayed columns ───────────
     const totalCountIdx = cols.indexOf("total_count");
-    if (totalCountIdx !== -1) {
+    const hadTotalCount = totalCountIdx !== -1;
+    let totalCount2 = null;
+    if (hadTotalCount) {
+      totalCount2 = rows[0]?.[totalCountIdx] ?? null;
       cols = cols.filter(c => c !== "total_count");
       rows = rows.map(row => row.filter((_, i) => i !== totalCountIdx));
     }
@@ -655,53 +806,24 @@ app.post("/api/chat", async (req, res) => {
     // For any non-TAM, non-contact listing that has fleet_size or companyState,
     // run a second aggregate query so charts reflect the full dataset (not just the page).
     let chartData = null;
-    const isListingQuery = !isContact && cols.some(c => c.toLowerCase() === 'fleet_size' || c.toLowerCase() === 'companystate') &&
+    let companySummaryRows = null;
+    const isListingQuery = hadTotalCount && !isContact && cols.some(c => c.toLowerCase() === 'fleet_size' || c.toLowerCase() === 'companystate') &&
       !cols.some(c => c.toLowerCase() === 'section');
 
     if (isListingQuery && generatedSQL !== "NONE") {
       try {
-        // Extract the WHERE clause from the generated SQL to reuse the same filters
-        const upperSQL = finalSQL.replace(/\s+/g, ' ');
-        // Find the core filter by extracting from the CTE or main WHERE
-        const whereMatch = upperSQL.match(/WHERE\s+([\s\S]+?)\s*(?:ORDER BY|GROUP BY|LIMIT|$)/i);
-        const whereClause = whereMatch ? whereMatch[1].trim() : '1=1';
+        const chartSQL   = buildListingChartSQL(finalSQL);
+        const summarySQL = buildSummaryRowsSQL(finalSQL);
 
-        // Strip any rn = 1 dedup filter since we query the full table
-        const cleanWhere = whereClause.replace(/\s*AND\s*rn\s*=\s*1/gi, '').replace(/^rn\s*=\s*1\s*AND\s*/i, '').trim() || '1=1';
+        const [chartResult, summaryResult] = await Promise.all([
+          databricksQuery(chartSQL),
+          databricksQuery(summarySQL),
+        ]);
 
-        const chartSQL = `
-          WITH base AS (
-            SELECT company_id, fleet_size, companyState
-            FROM ${CONFIG.DATABRICKS_CATALOG}.${CONFIG.DATABRICKS_SCHEMA}.${CONFIG.DATABRICKS_TABLE}
-            WHERE ${cleanWhere}
-          ),
-          fleet_agg AS (
-            SELECT fleet_size AS breakdown_label, COUNT(DISTINCT company_id) AS company_count
-            FROM base WHERE fleet_size IS NOT NULL AND fleet_size != ''
-            GROUP BY fleet_size
-          ),
-          state_agg AS (
-            SELECT companyState AS breakdown_label, COUNT(DISTINCT company_id) AS company_count
-            FROM base WHERE companyState IS NOT NULL AND companyState != ''
-            GROUP BY companyState
-          )
-          SELECT 'fleet' AS section, breakdown_label, company_count,
-                 ROUND(company_count * 100.0 / SUM(company_count) OVER (PARTITION BY 'fleet'), 1) AS pct_of_total
-          FROM fleet_agg
-          UNION ALL
-          SELECT 'state' AS section, breakdown_label, company_count,
-                 ROUND(company_count * 100.0 / SUM(company_count) OVER (PARTITION BY 'state'), 1) AS pct_of_total
-          FROM state_agg
-          ORDER BY section, company_count DESC
-        `;
-
-        if (isSafeSql(chartSQL)) {
-          const chartResult = await databricksQuery(chartSQL);
-          const parsed = parseResult(chartResult);
-          if (parsed.rows.length > 0) chartData = parsed;
-        }
+        if (chartResult)   { const p = parseResult(chartResult);   if (p.rows.length > 0) chartData          = p; }
+        if (summaryResult) { const p = parseResult(summaryResult); if (p.rows.length > 0) companySummaryRows = p; }
       } catch (e) {
-        console.warn("[CHART AGG FAILED]", e.message.slice(0, 200));
+        console.warn("[CHART/SUMMARY AGG FAILED]", e.message.slice(0, 200));
         // Non-fatal — frontend will fall back to tallying raw rows
       }
     }
@@ -757,11 +879,13 @@ app.post("/api/chat", async (req, res) => {
       prettycols,
       rows: responseRows,
       rowCount,
+      totalCount: totalCount2,
       sql: finalSQL,
       contactsMasked,
       formAlreadyFilled: contactsUnlocked,
       requiresLead,
       chartData,
+      companySummaryRows,
       _rollingContext: contextNote,   // client echoes this back in chatHistory
     });
 

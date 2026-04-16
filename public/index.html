@@ -110,6 +110,12 @@ table.dt th { padding:6px 10px; text-align:left; background:var(--teal-pale); co
 table.dt td { padding:5px 10px; border-bottom:1px solid var(--border); color:var(--text-mid); white-space:nowrap; }
 table.dt tr:last-child td { border:none; }
 table.dt tr:hover td { background:var(--teal-pale); }
+tr.row-selected td { background:#fff3ec !important; }
+.filter-badge { display:inline-flex;align-items:center;gap:4px;padding:2px 8px;background:#e0eaf8;border:1px solid #b3ccea;border-radius:12px;font-size:11px;color:#0a1628; }
+.filter-badge button { background:none;border:none;cursor:pointer;color:#0066cc;font-size:13px;line-height:1;padding:0 2px;font-weight:700; }
+.filter-badge-clear { background:none;border:1px solid #cc4444;border-radius:10px;cursor:pointer;color:#cc4444;font-size:11px;padding:2px 8px; }
+.filter-count { color:#6b7a96;font-size:11px; }
+.no-filter-data { padding:20px;text-align:center;font-size:12px;color:#6b7a96; }
 .err-box { background:#fef2f2; border:1px solid #fecaca; border-radius:var(--radius); padding:10px 13px; font-size:12.5px; color:var(--red); margin-top:6px; }
 
 /* ── Charts ── */
@@ -362,6 +368,17 @@ function fmt(text) {
 // ── Chart state ──────────────────────────────────────────────
 let chartInstances = {};
 
+// Cross-filter state, keyed by chrId
+const summaryRowsStore = new Map(); // chrId → [[name, state, fleet], ...]
+const filterStateStore  = new Map(); // chrId → { state: null|string, fleet: null|string }
+const tableRowsStore    = new Map(); // chrId → { cols, prettycols, rows, twId }
+
+// Module-level palette used by rerender() outside renderSmartCharts scope
+const CHART_PALETTE = [
+  '#0066CC','#0A1628','#3399FF','#004d99','#66b3ff',
+  '#e07b39','#f4c542','#5b8dd9','#22a06b','#9b59b6','#34495e','#16a085'
+];
+
 // barContainerId  → renders fleet bar chart directly into this element
 // mapContainerId  → renders US heatmap directly into this element (optional, defaults to barContainerId for legacy)
 function renderSmartCharts(cols, rows, barContainerId, mapContainerId) {
@@ -371,10 +388,10 @@ function renderSmartCharts(cols, rows, barContainerId, mapContainerId) {
   const mapContainer = mapContainerId ? document.getElementById(mapContainerId) : null;
 
   const lower = cols.map(c => c.toLowerCase());
-  const PALETTE = [
-    '#0066CC','#0A1628','#3399FF','#004d99','#66b3ff',
-    '#e07b39','#f4c542','#5b8dd9','#22a06b','#9b59b6','#34495e','#16a085'
-  ];
+  const PALETTE = CHART_PALETTE;
+
+  // Extract chrId from barContainerId ("barchart_chr_XXXX" → "chr_XXXX")
+  const chrId = barContainerId.replace('barchart_', '');
 
   let barRendered = false;
   let mapRendered = false;
@@ -382,9 +399,9 @@ function renderSmartCharts(cols, rows, barContainerId, mapContainerId) {
   // helper: render bar into barContainer
   function doBar(title, data, isFleet) {
     const cid = barContainerId + '_bar';
-    barContainer.innerHTML = `<h4 ...>${title}</h4><div class="chart-fill"><canvas id="${cid}"></canvas></div>`;
+    barContainer.innerHTML = `<h4 style="font-size:10.5px;font-weight:600;color:var(--teal-dark);margin-bottom:6px;letter-spacing:.5px;">${title}</h4><div class="chart-fill"><canvas id="${cid}"></canvas></div>`;
 
-    if (isFleet) renderFleetBarChart(cid, data, PALETTE);
+    if (isFleet) renderFleetBarChart(cid, data, PALETTE, chrId);
     else         renderBarChart(cid, data, PALETTE);
     barRendered = true;
   }
@@ -396,7 +413,7 @@ function renderSmartCharts(cols, rows, barContainerId, mapContainerId) {
     if (isState) {
       const mid = barContainerId + '_statemap';
       target.innerHTML = `<h4 class="map-container-block-title" style="font-size:10.5px;font-weight:600;color:var(--teal-dark);margin-bottom:6px;letter-spacing:.5px;">${title}</h4><div id="${mid}" style="width:100%;"></div>`;
-      renderUSHeatmap(mid, data);
+      renderUSHeatmap(mid, data, barContainerId, chrId);
     } else {
       const cid = barContainerId + '_rev';
       target.innerHTML = `<h4 style="font-size:10.5px;font-weight:600;color:var(--teal-dark);margin-bottom:6px;letter-spacing:.5px;">${title}</h4><canvas id="${cid}" style="width:100%!important;"></canvas>`;
@@ -524,14 +541,158 @@ function renderSmartCharts(cols, rows, barContainerId, mapContainerId) {
   return barRendered || mapRendered;
 }
 
+// ── Cross-filter helpers ──────────────────────────────────────
+
+function applyFilter(chrId, newFilter) {
+  const cur = filterStateStore.get(chrId) || { state: null, fleet: null };
+  filterStateStore.set(chrId, {
+    state: 'state' in newFilter ? (cur.state === newFilter.state ? null : newFilter.state) : cur.state,
+    fleet: 'fleet' in newFilter ? (cur.fleet === newFilter.fleet ? null : newFilter.fleet) : cur.fleet,
+  });
+  rerender(chrId);
+}
+
+function clearFilters(chrId) {
+  filterStateStore.set(chrId, { state: null, fleet: null });
+  rerender(chrId);
+}
+
+function rerender(chrId) {
+  const filter  = filterStateStore.get(chrId) || { state: null, fleet: null };
+  const allRows = summaryRowsStore.get(chrId) || [];
+  const COL_STATE = 1, COL_FLEET = 2;
+
+  const filtered = allRows.filter(r =>
+    (!filter.state || r[COL_STATE] === filter.state) &&
+    (!filter.fleet || r[COL_FLEET] === filter.fleet)
+  );
+
+  // Recompute fleet and state aggregates
+  const fleetTally = {}, stateTally = {};
+  filtered.forEach(r => {
+    const f = r[COL_FLEET]; if (f && f !== 'null' && f !== '') fleetTally[f] = (fleetTally[f]||0)+1;
+    const s = r[COL_STATE]; if (s && s !== 'null' && s !== '') stateTally[s] = (stateTally[s]||0)+1;
+  });
+  const fleetData = Object.entries(fleetTally).map(([label,value])=>({label,value}));
+  const stateData = Object.entries(stateTally).map(([label,value])=>({label,value}));
+
+  // Re-render bar chart
+  const barCont = document.getElementById('barchart_' + chrId);
+  if (barCont) {
+    const cid = 'barchart_' + chrId + '_bar';
+    if (fleetData.length) {
+      barCont.innerHTML = `<h4 style="font-size:10.5px;font-weight:600;color:var(--teal-dark);margin-bottom:6px;letter-spacing:.5px;">🚛 Fleet Size Distribution</h4><div class="chart-fill"><canvas id="${cid}"></canvas></div>`;
+      renderFleetBarChart(cid, fleetData, CHART_PALETTE, chrId);
+    } else {
+      barCont.innerHTML = `<div class="no-filter-data">No fleet data for this filter.</div>`;
+    }
+  }
+
+  // Re-render map
+  const mapCont = document.getElementById('mapinner_' + chrId);
+  if (mapCont) {
+    const mid = 'barchart_' + chrId + '_statemap';
+    if (stateData.length) {
+      mapCont.innerHTML = `<h4 class="map-container-block-title" style="font-size:10.5px;font-weight:600;color:var(--teal-dark);margin-bottom:6px;letter-spacing:.5px;">🗺️ Companies by State</h4><div id="${mid}" style="width:100%;"></div>`;
+      renderUSHeatmap(mid, stateData, 'barchart_' + chrId, chrId);
+    } else {
+      mapCont.innerHTML = `<div class="no-filter-data">No state data for this filter.</div>`;
+    }
+  }
+
+  // Re-render table: filter all summary rows, then show first 5
+  const stored = tableRowsStore.get(chrId);
+  if (stored) {
+    const lower = stored.cols.map(c => c.toLowerCase());
+    const si = lower.findIndex(c => c === 'companystate' || c === 'company_state');
+    const fi = lower.indexOf('fleet_size');
+    const filteredTableRows = allRows.filter(r =>
+      (!filter.state || (si !== -1 && r[si] === filter.state)) &&
+      (!filter.fleet || (fi !== -1 && r[fi] === filter.fleet))
+    );
+    const tw = document.getElementById(stored.twId);
+    if (tw) {
+      tw.innerHTML = buildTableWithFilter(stored.cols, stored.prettycols, filteredTableRows.slice(0, 5), chrId);
+      attachTableClickDelegation(tw, chrId);
+    }
+  }
+
+  renderFilterBadges(chrId, filter, filtered.length);
+}
+
+function renderFilterBadges(chrId, filter, filteredCount) {
+  const el = document.getElementById('filterbadges_' + chrId);
+  if (!el) return;
+  const badges = [];
+  if (filter.state) badges.push(`<span class="filter-badge">📍 ${esc(filter.state)} <button onclick="applyFilter('${esc(chrId)}',{state:'${esc(filter.state)}'})">×</button></span>`);
+  if (filter.fleet) badges.push(`<span class="filter-badge">🚛 ${esc(filter.fleet)} <button onclick="applyFilter('${esc(chrId)}',{fleet:'${esc(filter.fleet)}'})">×</button></span>`);
+  if (!badges.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  const total = summaryRowsStore.get(chrId)?.length ?? 0;
+  el.style.display = 'flex';
+  el.innerHTML = badges.join('') +
+    `<span class="filter-count">${filteredCount.toLocaleString()} of ${total.toLocaleString()} companies</span>` +
+    `<button class="filter-badge-clear" onclick="clearFilters('${esc(chrId)}')">Clear all ×</button>`;
+}
+
+function buildTableWithFilter(cols, prettycols, rows, chrId) {
+  const lower = cols.map(c => c.toLowerCase());
+  const skipCols = new Set(['company_id','contact_id','signal_score','signal_date','rn']);
+  const hasCompanyRows = lower.includes('company_name') && !lower.some(c => c.startsWith('contact_'));
+  const companyDisplayOrder = ['company_name', 'company_industry', 'fleet_size', 'companycity', 'companystate'];
+  const indices = hasCompanyRows
+    ? companyDisplayOrder.map(c => lower.indexOf(c)).filter(i => i !== -1)
+    : cols.map((_,i) => skipCols.has(lower[i]) ? -1 : i).filter(i => i !== -1);
+
+  const si = lower.findIndex(c => c === 'companystate' || c === 'company_state');
+  const fi = lower.indexOf('fleet_size');
+  const activeFilter = filterStateStore.get(chrId) || { state: null, fleet: null };
+  const displayCols = prettycols || cols;
+  const th = indices.map(i => `<th>${esc(displayCols[i] || cols[i])}</th>`).join('');
+  const tb = (rows||[]).map(r => {
+    const rowState = si !== -1 ? String(r[si] ?? '') : '';
+    const rowFleet = fi !== -1 ? String(r[fi] ?? '') : '';
+    const isSelected = activeFilter.state && activeFilter.fleet
+      ? rowState === activeFilter.state && rowFleet === activeFilter.fleet
+      : activeFilter.state ? rowState === activeFilter.state
+      : activeFilter.fleet ? rowFleet === activeFilter.fleet
+      : false;
+    return `<tr data-chr="${esc(chrId)}" data-state="${esc(rowState)}" data-fleet="${esc(rowFleet)}" style="cursor:pointer;"${isSelected?' class="row-selected"':''}>` +
+      indices.map(i => {
+        const val = String(r[i] ?? '');
+        if (/^https?:\/\//i.test(val)) {
+          return `<td><a href="${esc(val)}" target="_blank" rel="noopener" style="color:var(--blue);text-decoration:none">${esc(val.replace(/^https?:\/\/(www\.)?/,''))}</a></td>`;
+        }
+        return `<td>${esc(val)}</td>`;
+      }).join('') + '</tr>';
+  }).join('');
+  return `<table class="dt"><thead><tr>${th}</tr></thead><tbody>${tb}</tbody></table>`;
+}
+
+function attachTableClickDelegation(tw, chrId) {
+  if (!tw || !summaryRowsStore.has(chrId)) return;
+  // Remove previous handler to avoid stacking on re-renders
+  if (tw._filterHandler) tw.removeEventListener('click', tw._filterHandler);
+  tw._filterHandler = function(e) {
+    const tr = e.target.closest('tr[data-chr]');
+    if (!tr) return;
+    const st = tr.dataset.state || null;
+    const fl = tr.dataset.fleet || null;
+    const newFilter = {};
+    if (st) newFilter.state = st;
+    if (fl) newFilter.fleet = fl;
+    if (Object.keys(newFilter).length) applyFilter(tr.dataset.chr, newFilter);
+  };
+  tw.addEventListener('click', tw._filterHandler);
+}
+
 // ── Fleet Size Bar Chart (ordered by fleet size tiers) ──────
-function renderFleetBarChart(cid, data, PALETTE) {
+function renderFleetBarChart(cid, data, PALETTE, chrId) {
   const ctx = document.getElementById(cid)?.getContext('2d');
   if (!ctx) return;
   if (chartInstances[cid]) chartInstances[cid].destroy();
 
   // Sort fleet size tiers in logical order
-  const FLEET_ORDER = ['<25','25-49','50-99','100-249','250-499','500-999','1000-2499','2500+'];
+  const FLEET_ORDER = ['2500+','1000-2499','500-999','250-499','250 +','100-249','50-99','25-49','10-24','5-9','1-4'];
   const sorted = [...data].sort((a, b) => {
     const ai = FLEET_ORDER.indexOf(a.label);
     const bi = FLEET_ORDER.indexOf(b.label);
@@ -542,6 +703,12 @@ function renderFleetBarChart(cid, data, PALETTE) {
   });
 
   const total = sorted.reduce((s, d) => s + d.value, 0);
+
+  // Highlight active fleet filter bar
+  const activeFleet = chrId ? filterStateStore.get(chrId)?.fleet : null;
+  const bgColors = sorted.map(d =>
+    activeFleet ? (d.label === activeFleet ? '#FF6B35' : 'rgba(0,102,204,0.3)') : '#0066CC'
+  );
 
   const pctPlugin = {
     id: 'fleetPctLabels',
@@ -561,23 +728,13 @@ function renderFleetBarChart(cid, data, PALETTE) {
     }
   };
 
-  // Gradient colors from light to dark blue based on value
-  const maxVal = Math.max(...sorted.map(d => d.value));
-  const bgColors = sorted.map(d => {
-    const intensity = maxVal > 0 ? d.value / maxVal : 0;
-    const r = Math.round(0   + (51  - 0)   * (1 - intensity));
-    const g = Math.round(102 + (153 - 102) * (1 - intensity));
-    const b2 = Math.round(204 + (255 - 204) * (1 - intensity));
-    return `rgba(${Math.round(0 + intensity*0)},${Math.round(102 - intensity*30)},${Math.round(204 - intensity*50)},${0.55 + intensity*0.45})`;
-  });
-
   chartInstances[cid] = new Chart(ctx, {
     type: 'bar',
     data: {
       labels: sorted.map(d => d.label),
       datasets: [{
         data: sorted.map(d => d.value),
-        backgroundColor: sorted.map((_, i) => PALETTE[i % PALETTE.length]),
+        backgroundColor: bgColors,
         borderRadius: 5,
         borderSkipped: false
       }]
@@ -585,7 +742,7 @@ function renderFleetBarChart(cid, data, PALETTE) {
     plugins: [pctPlugin],
     options: {
       responsive: true,
-      maintainAspectRatio: false, 
+      maintainAspectRatio: false,
       layout: { padding: { top: 20 } },
       plugins: {
         legend: { display: false },
@@ -599,6 +756,11 @@ function renderFleetBarChart(cid, data, PALETTE) {
           }
         }
       },
+      onClick: (evt, elements) => {
+        if (!elements.length || !chrId || !summaryRowsStore.has(chrId)) return;
+        const label = sorted[elements[0].index]?.label;
+        if (label) applyFilter(chrId, { fleet: label });
+      },
       scales: {
         x: { ticks: { font: { size: 9 }, maxRotation: 35 }, grid: { display: false } },
         y: { ticks: { font: { size: 10 } }, grid: { color: 'rgba(0,0,0,.05)' } }
@@ -608,7 +770,7 @@ function renderFleetBarChart(cid, data, PALETTE) {
 }
 
 // ── US Choropleth Heatmap (D3 + TopoJSON, orange→blue gradient) ──
-function renderUSHeatmap(containerId, stateData) {
+function renderUSHeatmap(containerId, stateData, ownerBarId, chrId) {
   const container = document.getElementById(containerId);
   if (!container) return;
 
@@ -643,14 +805,24 @@ function renderUSHeatmap(containerId, stateData) {
   const vals = Object.values(lookup);
   const maxVal = vals.length ? Math.max(...vals) : 1;
 
-  // Orange (#FF6103) → Blue (#0066CC), power scale for visibility
+  // Blue (#0066CC) → bright green-white middle → Green (#00CC66), power scale for visibility
   function getColor(val) {
     if (!val) return '#e0e0e0'; // grey for zero states
     const t = Math.pow(val / maxVal, 0.55);
-    // Interpolate: #FF6103 → #0066CC
-    const r = Math.round(255 + t * (0   - 255));
-    const g = Math.round( 97 + t * (102 -  97));
-    const b = Math.round(  3 + t * (204 -   3));
+    // Two-segment interpolation: 0→0.5 = Blue→bright lime, 0.5→1 = bright lime→Green
+    // This avoids any grey/muddy midpoint by going through a vivid #80FFB3 at t=0.5
+    let r, g, b;
+    if (t <= 0.5) {
+      const s = t / 0.5;
+      r = Math.round(0   + s * (128 - 0));    // 0   → 128
+      g = Math.round(102 + s * (255 - 102));  // 102 → 255
+      b = Math.round(204 + s * (179 - 204));  // 204 → 179
+    } else {
+      const s = (t - 0.5) / 0.5;
+      r = Math.round(128 + s * (0   - 128));  // 128 → 0
+      g = Math.round(255 + s * (204 - 255));  // 255 → 204
+      b = Math.round(179 + s * (102 - 179));  // 179 → 102
+    }
     return `rgb(${r},${g},${b})`;
   }
 
@@ -681,11 +853,11 @@ function renderUSHeatmap(containerId, stateData) {
         style="width:100%;height:auto;display:block;background:#fafbfd;border-radius:8px 8px 0 0;">
       <defs>
         <linearGradient id="${gradId}" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%"   stop-color="#FF6103"/>
-          <stop offset="25%"  stop-color="#cc6b2a"/>
-          <stop offset="50%"  stop-color="#7a6888"/>
-          <stop offset="75%"  stop-color="#3366bb"/>
-          <stop offset="100%" stop-color="#0066CC"/>
+          <stop offset="0%"   stop-color="#0066CC"/>
+          <stop offset="25%"  stop-color="#00AADD"/>
+          <stop offset="50%"  stop-color="#80FFB3"/>
+          <stop offset="75%"  stop-color="#33DD88"/>
+          <stop offset="100%" stop-color="#00CC66"/>
         </linearGradient>
       </defs>
       ${paths}
@@ -702,7 +874,7 @@ function renderUSHeatmap(containerId, stateData) {
     const legendHtml = `
       <div style="padding:8px 10px 10px;background:#fafbfd;border-radius:0 0 8px 8px;border-top:1px solid #e8eef7;">
         <div style="position:relative;height:12px;border-radius:4px;overflow:hidden;
-          background:linear-gradient(to right,#FF6103,#cc6b2a,#7a6888,#3366bb,#0066CC);">
+          background:linear-gradient(to right,#0066CC,#00AADD,#80FFB3,#33DD88,#00CC66);">
         </div>
         <div style="display:flex;justify-content:space-between;margin-top:4px;">
           ${tickVals.map((v,i) => `
@@ -714,7 +886,7 @@ function renderUSHeatmap(containerId, stateData) {
             </div>`).join('')}
         </div>
         <div style="text-align:center;margin-top:1px;font-size:9px;color:#9ba8bc;font-family:Inter,sans-serif;letter-spacing:.3px;">
-          companies per state &nbsp;·&nbsp; orange = low &nbsp;·&nbsp; blue = high
+          companies per state &nbsp;·&nbsp; blue = low &nbsp;·&nbsp; green = high
         </div>
       </div>`;
 
@@ -728,11 +900,18 @@ function renderUSHeatmap(containerId, stateData) {
     const t2  = document.getElementById(uid+'_t2');
     if (!svg || !tt) return;
 
+    const activeState = chrId ? filterStateStore.get(chrId)?.state : null;
     svg.querySelectorAll('.sp').forEach(p => {
       if (p.classList.contains('sp-zero')) return; // no hover for zero states
+      p.style.cursor = 'pointer';
+      // Apply selected-state highlight at render time
+      if (activeState && p.dataset.n === activeState) {
+        p.style.strokeWidth = '2.5';
+        p.style.stroke = '#FF6B35';
+      }
       p.addEventListener('mouseenter', function() {
         this.style.filter = 'brightness(0.75)';
-        this.style.strokeWidth = '1.8';
+        if (!(activeState && this.dataset.n === activeState)) this.style.strokeWidth = '1.8';
         const v = parseInt(this.dataset.v)||0;
         t1.textContent = this.dataset.n;
         t2.textContent = `${Number(v).toLocaleString()} compan${v===1?'y':'ies'}`;
@@ -746,8 +925,12 @@ function renderUSHeatmap(containerId, stateData) {
       });
       p.addEventListener('mouseleave', function() {
         this.style.filter = '';
-        this.style.strokeWidth = '0.6';
+        this.style.strokeWidth = (activeState && this.dataset.n === activeState) ? '2.5' : '0.6';
+        this.style.stroke = (activeState && this.dataset.n === activeState) ? '#FF6B35' : '#fff';
         tt.style.display = 'none';
+      });
+      p.addEventListener('click', function() {
+        if (chrId && summaryRowsStore.has(chrId)) applyFilter(chrId, { state: this.dataset.n });
       });
     });
   }
@@ -999,10 +1182,28 @@ async function send() {
 
     const prettycols = data.prettycols || data.cols;
 
+    function getTableDisplayIndices(cols) {
+      const skipCols = new Set(['company_id','contact_id','signal_score','signal_date','rn']);
+      const lowerCols = cols.map(c => c.toLowerCase());
+      const hasCompanyRows = lowerCols.includes('company_name') && !lowerCols.some(c => c.startsWith('contact_'));
+      const companyDisplayOrder = ['company_name', 'company_industry', 'fleet_size', 'companycity', 'companystate'];
+      return hasCompanyRows
+        ? companyDisplayOrder.map(c => lowerCols.indexOf(c)).filter(i => i !== -1)
+        : cols.map((c,i) => skipCols.has(c.toLowerCase()) ? -1 : i).filter(i => i !== -1);
+    }
+
+    function isBlankDisplayValue(val) {
+      return val == null || (typeof val === 'string' && val.trim() === '');
+    }
+
+    function isCompanyListingTable(cols, isListing, isContact) {
+      const lowerCols = cols.map(c => c.toLowerCase());
+      return isListing && !isContact && lowerCols.includes('company_name') && !lowerCols.some(c => c.startsWith('contact_'));
+    }
+
     // Helper to build table
     function buildTable(cols, prettycols, rows) {
-      const skipCols = new Set(['company_id','contact_id','signal_score','signal_date','rn']);
-      const indices = cols.map((c,i) => skipCols.has(c.toLowerCase()) ? -1 : i).filter(i => i !== -1);
+      const indices = getTableDisplayIndices(cols);
       const displayCols = prettycols || cols;
       const th = indices.map(i => `<th>${esc(displayCols[i] || cols[i])}</th>`).join('');
       const tb = (rows||[]).map(r => '<tr>' + indices.map(i => {
@@ -1018,7 +1219,15 @@ async function send() {
 
     if (data.cols?.length && data.rows?.length) {
       const rc         = data.rowCount ?? data.rows.length;
+      const totalCount = data.totalCount ?? null;
+      const isListing  = totalCount !== null;
       const isContact  = data.stage === 'CONTACT';
+      const displayIndices = getTableDisplayIndices(data.cols);
+      const shouldFilterCompanyRows = isCompanyListingTable(data.cols, isListing, isContact);
+      const visibleRows = shouldFilterCompanyRows
+        ? data.rows.filter(r => displayIndices.every(i => !isBlankDisplayValue(r[i])))
+        : data.rows;
+      const visibleRc  = shouldFilterCompanyRows ? visibleRows.length : rc;
       const hasFleet    = data.cols.some(c => c.toLowerCase() === 'fleet_size');
       const hasState    = data.cols.some(c => c.toLowerCase() === 'companystate' || c.toLowerCase() === 'company_state');
       const hasTAMSection = data.cols.some(c => c.toLowerCase() === 'section') && data.cols.some(c => c.toLowerCase() === 'breakdown_label');
@@ -1026,6 +1235,12 @@ async function send() {
       const hasRevenue  = data.cols.some(c => c.toLowerCase() === 'company_revenue_range');
       const showChart   = !isContact && (hasFleet || hasState || hasTAMSection || hasIndustry || hasRevenue);
       const label       = isContact ? '👤 Contacts' : '🏢 Companies';
+      // Company listings may hide incomplete visible rows, so their label uses the filtered table count.
+      const countLabel  = shouldFilterCompanyRows
+        ? `<strong style="font-size:12.5px;color:var(--navy)">${visibleRc}</strong> result${visibleRc!==1?'s':''}`
+        : isListing && !isContact
+          ? `Top <strong style="font-size:12.5px;color:var(--navy)">${visibleRc}</strong> of <strong style="font-size:12.5px;color:var(--navy)">${Number(totalCount).toLocaleString()}</strong> result${totalCount!==1?'s':''}`
+          : `<strong style="font-size:12.5px;color:var(--navy)">${visibleRc}</strong> result${visibleRc!==1?'s':''}`;
 
       // ── 2. Side-by-side: bar chart + table, then map below ──
       if (isContact) html += renderLeadGate(tblId, data.cols, data.rows, data.formAlreadyFilled);
@@ -1038,17 +1253,18 @@ async function send() {
               <span class="block-label">📈 Analytics</span>
               <button class="block-toggle" onclick="toggleBlock('${chrId}',this)">hide</button>
             </div>
+            <div id="filterbadges_${chrId}" style="display:none;padding:6px 12px;background:#f0f4fa;border-bottom:1px solid var(--border);font-size:11.5px;align-items:center;gap:6px;flex-wrap:wrap;"></div>
             <div class="block-body open" id="${chrId}">
               <div id="mapinner_${chrId}" class="map-container-block"></div>
               <div class="sidebyside-wrap">
                 <div class="sidebyside-bar" id="barchart_${chrId}"></div>
                 <div class="sidebyside-table">
                   <div class="block-hd" style="border-radius:0;border-left:1px solid var(--border);">
-                    <span class="block-label">${label} · <strong style="font-size:12.5px;color:var(--navy)">${rc}</strong> result${rc!==1?'s':''}</span>
+                    <span class="block-label">${label} · ${countLabel}</span>
                     <button class="block-toggle" onclick="toggleBlock('${tblId}',this)">hide</button>
                   </div>
                   <div class="block-body open" id="${tblId}" style="border-left:1px solid var(--border);">
-                    <div class="tbl-wrap" id="tw_${tblId}">${buildTable(data.cols, prettycols, data.rows)}</div>
+                    <div class="tbl-wrap" id="tw_${tblId}">${buildTableWithFilter(data.cols, prettycols, visibleRows, chrId)}</div>
                   </div>
                 </div>
               </div>
@@ -1059,20 +1275,44 @@ async function send() {
         html += `
           <div class="block">
             <div class="block-hd">
-              <span class="block-label">${label} · <strong style="font-size:12.5px;color:var(--navy)">${rc}</strong> result${rc!==1?'s':''}</span>
+              <span class="block-label">${label} · ${countLabel}</span>
               <button class="block-toggle" onclick="toggleBlock('${tblId}',this)">hide</button>
             </div>
             <div class="block-body open" id="${tblId}">
-              <div class="tbl-wrap" id="tw_${tblId}">${buildTable(data.cols, prettycols, data.rows)}</div>
+              <div class="tbl-wrap" id="tw_${tblId}">${buildTable(data.cols, prettycols, visibleRows)}</div>
             </div>
           </div>`;
       }
 
       // ── 5. Key Insights ──
       html += buildInsights(data.insights);
+
+      // Populate cross-filter stores for listing queries
+      if (data.companySummaryRows?.rows?.length && isListing && !isContact) {
+        summaryRowsStore.set(chrId, data.companySummaryRows.rows);
+        filterStateStore.set(chrId, { state: null, fleet: null });
+        const sumCols = data.companySummaryRows.cols;
+        const CLIENT_COL_LABELS = {
+          company_name:'Company', company_website:'Website', companycity:'City',
+          companystate:'State', fleet_size:'Fleet Size', company_revenue_range:'Revenue Range',
+          company_industry:'Industry'
+        };
+        const sumPrettycols = sumCols.map(c =>
+          CLIENT_COL_LABELS[c.toLowerCase()] || c.replace(/_/g,' ').replace(/\b\w/g,l=>l.toUpperCase())
+        );
+        tableRowsStore.set(chrId, { cols: sumCols, prettycols: sumPrettycols, twId: 'tw_' + tblId });
+      }
     }
 
     appendMsg('bot', html);
+
+    // Attach table click delegation for cross-filtering (must be after DOM insert)
+    if (summaryRowsStore.has(chrId)) {
+      requestAnimationFrame(() => {
+        const tw = document.getElementById('tw_' + tblId);
+        if (tw) attachTableClickDelegation(tw, chrId);
+      });
+    }
 
     // Render charts after DOM insert
     if (data.cols?.length && data.rows?.length && data.stage !== 'CONTACT') {
@@ -1081,14 +1321,17 @@ async function send() {
       const hasFleet = data.cols.some(c => c.toLowerCase() === 'fleet_size');
       const hasState = data.cols.some(c => c.toLowerCase() === 'companystate' || c.toLowerCase() === 'company_state');
       const hasTAM = data.cols.some(c => c.toLowerCase() === 'section') && data.cols.some(c => c.toLowerCase() === 'breakdown_label');
-      const chartCols = data.chartData?.cols || data.cols;
-      const chartRows = data.chartData?.rows || data.rows;
-      const hasTAMChart  = chartCols.some(c => c.toLowerCase() === 'section') && chartCols.some(c => c.toLowerCase() === 'breakdown_label');
-      const hasIndChart  = chartCols.some(c => c.toLowerCase() === 'company_industry');
-      const hasRevChart  = chartCols.some(c => c.toLowerCase() === 'company_revenue_range');
-      const hasFleetChart= chartCols.some(c => c.toLowerCase() === 'fleet_size');
-      const hasStateChart= chartCols.some(c => c.toLowerCase() === 'companystate' || c.toLowerCase() === 'company_state');
-      if (hasInd || hasRev || hasFleet || hasState || hasTAM || hasTAMChart || hasIndChart || hasRevChart || hasFleetChart || hasStateChart) {
+      // For listing queries (totalCount present), ONLY use chartData — never fall back to the 5-row table.
+      // For TAM/aggregate queries, use the rows directly since they already contain breakdown data.
+      const isListingQuery = data.totalCount !== null && data.totalCount !== undefined;
+      const chartCols = data.chartData?.cols ?? (isListingQuery ? null : data.cols);
+      const chartRows = data.chartData?.rows ?? (isListingQuery ? null : data.rows);
+      const hasTAMChart  = chartCols?.some(c => c.toLowerCase() === 'section') && chartCols?.some(c => c.toLowerCase() === 'breakdown_label');
+      const hasIndChart  = chartCols?.some(c => c.toLowerCase() === 'company_industry');
+      const hasRevChart  = chartCols?.some(c => c.toLowerCase() === 'company_revenue_range');
+      const hasFleetChart= chartCols?.some(c => c.toLowerCase() === 'fleet_size');
+      const hasStateChart= chartCols?.some(c => c.toLowerCase() === 'companystate' || c.toLowerCase() === 'company_state');
+      if (chartCols && chartRows && (hasInd || hasRev || hasFleet || hasState || hasTAM || hasTAMChart || hasIndChart || hasRevChart || hasFleetChart || hasStateChart)) {
         requestAnimationFrame(() => {
           const rendered = renderSmartCharts(chartCols, chartRows, `barchart_${chrId}`, `mapinner_${chrId}`);
           if (!rendered) {
