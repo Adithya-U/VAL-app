@@ -854,12 +854,11 @@ function renderUSHeatmap(containerId, stateData, ownerBarId, chrId) {
         const bboxW = bounds[1][0] - bounds[0][0];
         const bboxH = bounds[1][1] - bounds[0][1];
         // fit text width (~0.55em per char) and height within the state's bounding box, cap at 10
-        const fs = Math.min(bboxW * 0.72 / (label.length * 0.55), bboxH * 0.55, 10);
+        const fs = Math.min(bboxW * 0.82 / (label.length * 0.55), bboxH * 0.65, 12);
         if (fs >= 3) {
           labels += `<text pointer-events="none" dominant-baseline="middle" text-anchor="middle"
             x="${cx.toFixed(1)}" y="${cy.toFixed(1)}"
-            font-size="${fs.toFixed(1)}" font-weight="700" fill="#fff"
-            stroke="#0006" stroke-width="2" paint-order="stroke"
+            font-size="${fs.toFixed(1)}" font-weight="700" fill="#6B4F2A"
             font-family="Inter,sans-serif">${label}</text>`;
         }
       }
