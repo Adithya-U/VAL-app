@@ -837,7 +837,7 @@ function renderUSHeatmap(containerId, stateData, ownerBarId, chrId) {
     const features = topojson.feature(us, us.objects.states).features;
     const gradId = uid+'_gr';
 
-    let paths = '';
+    let paths = '', labels = '';
     features.forEach(f => {
       const fips = String(f.id).padStart(2,'0');
       const abbr = FIPS_TO_ABBR[fips]; if (!abbr) return;
@@ -846,6 +846,23 @@ function renderUSHeatmap(containerId, stateData, ownerBarId, chrId) {
       paths += `<path class="sp${val===0?' sp-zero':''}" data-a="${abbr}" data-v="${val}" data-n="${ABBR_TO_NAME[abbr]||abbr}"
         d="${d}" fill="${getColor(val)}" stroke="#fff" stroke-width="0.6"
         style="cursor:${val===0?'default':'pointer'};transition:filter .12s;${val===0?'pointer-events:none;':''}"/>`;
+      if (val > 0) {
+        const centroid = pathGen.centroid(f);
+        const bounds = pathGen.bounds(f);
+        const [cx, cy] = centroid;
+        const label = val >= 1000 ? (val/1000).toFixed(1)+'k' : String(val);
+        const bboxW = bounds[1][0] - bounds[0][0];
+        const bboxH = bounds[1][1] - bounds[0][1];
+        // fit text width (~0.55em per char) and height within the state's bounding box, cap at 10
+        const fs = Math.min(bboxW * 0.72 / (label.length * 0.55), bboxH * 0.55, 10);
+        if (fs >= 3) {
+          labels += `<text pointer-events="none" dominant-baseline="middle" text-anchor="middle"
+            x="${cx.toFixed(1)}" y="${cy.toFixed(1)}"
+            font-size="${fs.toFixed(1)}" font-weight="700" fill="#fff"
+            stroke="#0006" stroke-width="2" paint-order="stroke"
+            font-family="Inter,sans-serif">${label}</text>`;
+        }
+      }
     });
 
     // Build tooltip group inside SVG
@@ -861,6 +878,7 @@ function renderUSHeatmap(containerId, stateData, ownerBarId, chrId) {
         </linearGradient>
       </defs>
       ${paths}
+      ${labels}
       <g id="${uid}_tt" style="display:none;pointer-events:none;">
         <rect x="0" y="0" width="148" height="36" rx="6" fill="#0A1628" opacity="0.93"/>
         <text id="${uid}_t1" x="74" y="14" text-anchor="middle" font-size="10" font-weight="700" fill="#fff" font-family="Inter,sans-serif"/>
