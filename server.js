@@ -914,6 +914,48 @@ async function saveLeadToDatabricks({ firstName, lastName, email, phone, jobTitl
   `);
 }
 
+// ── Contacts for a company ────────────────────────────────────
+app.get("/api/contacts", rateLimit, async (req, res) => {
+  const company = (req.query.company || "").trim();
+  if (!company) return res.status(400).json({ error: "company is required" });
+
+  const esc = s => String(s || "").replace(/'/g, "''");
+  const sql = `
+    WITH ranked AS (
+      SELECT contact_name, contact_job_title, contact_level,
+             contact_email, contact_phone, contact_mobile,
+             ROW_NUMBER() OVER (PARTITION BY contact_id ORDER BY signal_score DESC) AS rn
+      FROM bobit_datalake.default.bbm_demo_tam
+      WHERE company_name ILIKE '${esc(company)}'
+        AND contact_name IS NOT NULL AND contact_name != ''
+    ),
+    deduped AS (SELECT * FROM ranked WHERE rn = 1)
+    SELECT contact_name, contact_job_title, contact_level,
+           contact_email, contact_phone, contact_mobile
+    FROM deduped
+    ORDER BY contact_level
+  `;
+
+  try {
+    const result = await databricksQuery(sql);
+    let { cols, rows } = parseResult(result);
+    rows = maskRows(cols, rows);
+    const COL_LABELS = {
+      contact_name      : "Name",
+      contact_job_title : "Job Title",
+      contact_level     : "Seniority",
+      contact_email     : "Email",
+      contact_phone     : "Phone",
+      contact_mobile    : "Mobile",
+    };
+    const prettycols = cols.map(c => COL_LABELS[c.toLowerCase()] || c.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase()));
+    res.json({ cols, prettycols, rows });
+  } catch (e) {
+    console.error("[CONTACTS ERROR]", e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ============================================================
 //  SECTION 9 — DATABRICKS
 // ============================================================
