@@ -216,76 +216,59 @@ RANKING:
 - When the query involves ranking or "top" results, always use signal_score for the ROW_NUMBER() deduplication ONLY.
 - Always ORDER BY the primary metric: COUNT DESC for aggregates, fleet_size CASE expression (largest first) for company listings.
 
-TAM — TOTAL ADDRESSABLE MARKET QUERIES:
-There are TWO distinct TAM question types — you MUST correctly identify which one the user is asking before writing SQL.
+TAM - TOTAL ADDRESSABLE MARKET QUERIES:
+There are TWO distinct TAM question types - you MUST correctly identify which one the user is asking before writing SQL.
 Read the question carefully: are they asking about companies THAT ARE in an industry, or companies THAT ARE BUYING/RESEARCHING a product?
 
-TYPE 1 — "TAM of [industry] companies" (e.g. "TAM of US Logistics companies", "TAM of trucking companies"):
+TAM OUTPUT CONTRACT (critical):
+- TAM queries MUST use the SAME row-level listing contract as company listings so the UI can render map + fleet chart + company table.
+- Always return row-level company results with these columns:
+  company_name, company_website, companycity, companyState, fleet_size, company_revenue_range, company_industry, total_count
+- Always include (SELECT COUNT(*) FROM deduped) AS total_count and LIMIT 5.
+- Always deduplicate with ROW_NUMBER() OVER (PARTITION BY company_id ORDER BY signal_score DESC), never SELECT DISTINCT for deduplication.
+- Always ORDER BY fleet size using the exact CASE expression used for company listings.
+
+TYPE 1 - "TAM of [industry] companies" (e.g. "TAM of US Logistics companies", "TAM of trucking companies"):
   KEY SIGNAL: The user names an INDUSTRY or type of company (logistics, trucking, healthcare, manufacturing, etc.)
   They want to know how big that industry segment is in our database.
-  → Filter by: WHERE company_industry ILIKE '%<industry>%'   ← use company_industry, NEVER topic
-  → Do NOT filter by topic at all for TYPE 1.
-  → ALWAYS return BOTH a fleet size breakdown AND a state breakdown using UNION ALL.
-  → Use a 'section' discriminator column so the frontend can split the two breakdowns.
-  → Column names MUST be: section, breakdown_label, company_count, pct_of_total
-  REQUIRED PATTERN for TYPE 1 (mandatory — no exceptions):
-    WITH filtered AS (
-      SELECT company_id, company_industry, fleet_size, companyState
+  -> Filter by: WHERE company_industry ILIKE '%<industry>%'   <- use company_industry, NEVER topic
+  -> Do NOT filter by topic at all for TYPE 1.
+  REQUIRED PATTERN for TYPE 1 (mandatory - no exceptions):
+    WITH ranked AS (
+      SELECT *, ROW_NUMBER() OVER (PARTITION BY company_id ORDER BY signal_score DESC) AS rn
       FROM bobit_datalake.default.bbm_demo_tam
       WHERE company_industry ILIKE '%Logistics%'
     ),
-    fleet_base AS (
-      SELECT fleet_size AS breakdown_label, COUNT(DISTINCT company_id) AS company_count
-      FROM filtered WHERE fleet_size IS NOT NULL AND fleet_size != ''
-      GROUP BY fleet_size
-    ),
-    state_base AS (
-      SELECT companyState AS breakdown_label, COUNT(DISTINCT company_id) AS company_count
-      FROM filtered WHERE companyState IS NOT NULL AND companyState != ''
-      GROUP BY companyState
-    )
-    SELECT 'fleet' AS section, breakdown_label, company_count,
-           ROUND(company_count * 100.0 / SUM(company_count) OVER (PARTITION BY 'fleet'), 1) AS pct_of_total
-    FROM fleet_base
-    UNION ALL
-    SELECT 'state' AS section, breakdown_label, company_count,
-           ROUND(company_count * 100.0 / SUM(company_count) OVER (PARTITION BY 'state'), 1) AS pct_of_total
-    FROM state_base
-    ORDER BY section, company_count DESC
+    deduped AS (SELECT * FROM ranked WHERE rn = 1)
+    SELECT
+      company_name, company_website, companycity, companyState,
+      fleet_size, company_revenue_range, company_industry,
+      (SELECT COUNT(*) FROM deduped) AS total_count
+    FROM deduped
+    ORDER BY CASE fleet_size WHEN '2500+' THEN 1 WHEN '1000-2499' THEN 2 WHEN '500-999' THEN 3 WHEN '250-499' THEN 4 WHEN '250 +' THEN 4 WHEN '100-249' THEN 5 WHEN '50-99' THEN 6 WHEN '25-49' THEN 7 WHEN '10-24' THEN 8 WHEN '5-9' THEN 9 WHEN '1-4' THEN 10 ELSE 11 END ASC
+    LIMIT 5
 
-TYPE 2 — "TAM of companies looking for [product/service]" (e.g. "TAM of companies looking for logistics products", "companies interested in telematics"):
+TYPE 2 - "TAM of companies looking for [product/service]" (e.g. "TAM of companies looking for logistics products", "companies interested in telematics"):
   KEY SIGNAL: The user says "looking for", "interested in", "researching", "buying", "need" + a product or service.
-  They want to know which companies have BUYING INTENT for a product — use the topic signal column.
-  → Filter by: WHERE topic ILIKE '%<mapped_topic>%'   ← use topic, NEVER company_industry for the intent filter
-  → Map the user's product words to the closest valid topic value using TOPIC ALIAS MAP.
-  → Dashcam, fleet camera, in-cab camera, driver camera, vehicle camera, and video telematics phrases map to 'Telematics'.
-  → If the user mentions more than one mapped product, choose the dominant topic from the user's wording and intent.
-  → ALWAYS return BOTH a fleet size breakdown AND a state breakdown using UNION ALL.
-  → Column names MUST be: section, breakdown_label, company_count, pct_of_total
-  REQUIRED PATTERN for TYPE 2 (mandatory — no exceptions):
-    WITH filtered AS (
-      SELECT DISTINCT company_id, fleet_size, companyState
+  They want to know which companies have BUYING INTENT for a product - use the topic signal column.
+  -> Filter by: WHERE topic ILIKE '%<mapped_topic>%'   <- use topic, NEVER company_industry for the intent filter
+  -> Map the user's product words to the closest valid topic value using TOPIC ALIAS MAP.
+  -> Dashcam, fleet camera, in-cab camera, driver camera, vehicle camera, and video telematics phrases map to 'Telematics'.
+  -> If the user mentions more than one mapped product, choose the dominant topic from the user's wording and intent.
+  REQUIRED PATTERN for TYPE 2 (mandatory - no exceptions):
+    WITH ranked AS (
+      SELECT *, ROW_NUMBER() OVER (PARTITION BY company_id ORDER BY signal_score DESC) AS rn
       FROM bobit_datalake.default.bbm_demo_tam
       WHERE topic ILIKE '%Telematics%'
     ),
-    fleet_base AS (
-      SELECT fleet_size AS breakdown_label, COUNT(DISTINCT company_id) AS company_count
-      FROM filtered WHERE fleet_size IS NOT NULL AND fleet_size != ''
-      GROUP BY fleet_size
-    ),
-    state_base AS (
-      SELECT companyState AS breakdown_label, COUNT(DISTINCT company_id) AS company_count
-      FROM filtered WHERE companyState IS NOT NULL AND companyState != ''
-      GROUP BY companyState
-    )
-    SELECT 'fleet' AS section, breakdown_label, company_count,
-           ROUND(company_count * 100.0 / SUM(company_count) OVER (PARTITION BY 'fleet'), 1) AS pct_of_total
-    FROM fleet_base
-    UNION ALL
-    SELECT 'state' AS section, breakdown_label, company_count,
-           ROUND(company_count * 100.0 / SUM(company_count) OVER (PARTITION BY 'state'), 1) AS pct_of_total
-    FROM state_base
-    ORDER BY section, company_count DESC
+    deduped AS (SELECT * FROM ranked WHERE rn = 1)
+    SELECT
+      company_name, company_website, companycity, companyState,
+      fleet_size, company_revenue_range, company_industry,
+      (SELECT COUNT(*) FROM deduped) AS total_count
+    FROM deduped
+    ORDER BY CASE fleet_size WHEN '2500+' THEN 1 WHEN '1000-2499' THEN 2 WHEN '500-999' THEN 3 WHEN '250-499' THEN 4 WHEN '250 +' THEN 4 WHEN '100-249' THEN 5 WHEN '50-99' THEN 6 WHEN '25-49' THEN 7 WHEN '10-24' THEN 8 WHEN '5-9' THEN 9 WHEN '1-4' THEN 10 ELSE 11 END ASC
+    LIMIT 5
 
 CRITICAL DISAMBIGUATION RULE:
 - "TAM of logistics companies" → TYPE 1 (they ARE logistics companies → filter company_industry)
@@ -330,7 +313,7 @@ const ANSWER_PROMPT_SUFFIX = `
 RESPONSE STRUCTURE — write only these two XML tags based on the real data provided:
 
 <answer>
-One single direct sentence acknowledging the question and stating the key finding or number. For company listings, say "Showing [total_count] companies actively researching [display_topic]." followed by any location/filter context if applicable — use the actual total_count value from the data. Use ANSWER DISPLAY LABELS FOR TOPIC ALIASES from the system prompt: for dashcam/camera/video aliases mapped to 'Telematics', [display_topic] is "dashcam related telematics"; otherwise use the mapped valid topic. Never say "top 5 of" or mention the row limit. No bullet points, no sub-sections, no markdown tables, no pipes or dashes. Just one clean sentence.
+One single direct sentence acknowledging the question and stating the key finding or number. For company listings, say "Showing [total_count] companies actively researching [display_topic]." followed by any location/filter context if applicable - use the actual total_count value from the data. For TAM questions, keep TAM framing and state the market size in one sentence (e.g., "Your TAM is [total_count] companies ..."), while still using the real total_count from data. Use ANSWER DISPLAY LABELS FOR TOPIC ALIASES from the system prompt: for dashcam/camera/video aliases mapped to 'Telematics', [display_topic] is "dashcam related telematics"; otherwise use the mapped valid topic. Never say "top 5 of" or mention the row limit. No bullet points, no sub-sections, no markdown tables, no pipes or dashes. Just one clean sentence.
 </answer>
 <insights>
 Exactly 2 to 3 tight bullet points (use "- " prefix) surfacing real patterns from the data: dominant state or region, industry concentration, fleet size skew, gov vs private split, top titles, notable companies, TAM totals, etc. Make these genuinely useful observations, not restatements of column names. Base ONLY on actual data returned — never invent. If data is empty or conversational, output: NONE
@@ -565,7 +548,6 @@ function buildSummaryRowsSQL(listingSQL) {
     SELECT company_name, companyState, fleet_size, companycity, company_industry, company_website, company_revenue_range
     FROM full_listing
     WHERE company_name IS NOT NULL AND company_name != ''
-    LIMIT 2000
   `;
 }
 
@@ -803,7 +785,7 @@ app.post("/api/chat", async (req, res) => {
     const isContact = hasContactCols(cols);
     const stage     = isContact ? "CONTACT" : "DATA";
 
-    // For any non-TAM, non-contact listing that has fleet_size or companyState,
+    // For any non-contact listing-style query that has fleet_size or companyState,
     // run a second aggregate query so charts reflect the full dataset (not just the page).
     let chartData = null;
     let companySummaryRows = null;
